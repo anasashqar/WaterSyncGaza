@@ -125,7 +125,7 @@ export const useMapStore = create<MapState>((set, get) => ({
       layerVisibility: { ...s.layerVisibility, [layerKey]: visible },
     })),
 
-  showLabels: true,
+  showLabels: false,
   setShowLabels: (show) => set({ showLabels: show }),
 
   layerColors: {

@@ -148,7 +148,7 @@ export function AppToolbar({ onOpenDashboard, onOpenReports, onOpenEditor }: Too
           <span>
             {mode === 'station' && 'انقر على الخريطة لوضع محطة'}
             {mode === 'point' && 'انقر على الخريطة لوضع نقطة توزيع'}
-            {mode === 'zone' && 'انقر على الخريطة لوضع منطقة خطرة'}
+            {mode?.startsWith('zone') && 'انقر على الخريطة لوضع منطقة خطرة'}
           </span>
           <button onClick={() => setMode(null)} style={{
             background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff',

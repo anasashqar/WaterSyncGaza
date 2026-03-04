@@ -91,7 +91,7 @@ export function NeighborhoodsLayer() {
     return statsMap
   }, [points, features, featureBBoxes, hasDistributed])
 
-  const getFeatureStyle = (feature: any, isHovered = false, featureIndex?: number) => {
+  const getFeatureStyle = (_feature: any, isHovered = false, featureIndex?: number) => {
     let fillColor = baseColor
     let color = baseColor
     let fillOpacity = isHovered ? 0.35 : 0.12

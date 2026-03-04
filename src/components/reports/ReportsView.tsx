@@ -10,7 +10,6 @@ import {
   FileText,
   Database,
   MapPin,
-  Truck,
   Activity,
   X,
   Factory,
@@ -1249,131 +1248,6 @@ function StationReport({
 
 /* ─── Shared Enterprise UI Components ─── */
 
-function MiniCard({ label, value, icon }: any) {
-  return (
-    <div
-      style={{
-        background: "var(--bg-card)",
-        border: "1px solid var(--glass-border)",
-        padding: "20px",
-        borderRadius: 16,
-        boxShadow: "var(--shadow-sm)",
-        display: "flex",
-        alignItems: "center",
-        gap: 16,
-      }}
-    >
-      <div
-        style={{
-          width: 48,
-          height: 48,
-          borderRadius: 12,
-          background: "var(--bg-elevated)",
-          color: "var(--primary)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          border: "1px solid var(--glass-border)",
-        }}
-      >
-        {icon}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span
-          style={{
-            fontSize: "1.4rem",
-            fontWeight: 800,
-            color: "var(--text)",
-            fontFamily: "system-ui",
-          }}
-        >
-          {value}
-        </span>
-        <span
-          style={{
-            fontSize: "0.85rem",
-            color: "var(--text-muted)",
-            fontWeight: 600,
-          }}
-        >
-          {label}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function ReportTable({
-  rows,
-  statusIndex,
-  statusSuccess,
-}: {
-  rows: [string, string][];
-  statusIndex?: number;
-  statusSuccess?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        background: "var(--bg-card)",
-        borderRadius: 16,
-        overflow: "hidden",
-        border: "1px solid var(--glass-border)",
-        boxShadow: "var(--shadow-sm)",
-      }}
-    >
-      <table
-        style={{
-          width: "100%",
-          borderCollapse: "collapse",
-          fontSize: "0.9rem",
-        }}
-      >
-        <tbody>
-          {rows.map(([label, value], i) => {
-            const isStatusRow = i === statusIndex;
-            return (
-              <tr
-                key={i}
-                style={{
-                  borderBottom:
-                    i < rows.length - 1
-                      ? "1px solid var(--glass-border)"
-                      : "none",
-                }}
-              >
-                <td
-                  style={{
-                    padding: "14px 20px",
-                    fontWeight: 600,
-                    color: "var(--text-muted)",
-                    width: "40%",
-                    background: "var(--bg-elevated)",
-                  }}
-                >
-                  {label}
-                </td>
-                <td
-                  style={{
-                    padding: "14px 20px",
-                    fontWeight: isStatusRow ? 700 : 600,
-                    color: isStatusRow
-                      ? statusSuccess
-                        ? "var(--success)"
-                        : "var(--danger)"
-                      : "var(--text)",
-                  }}
-                >
-                  {value}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 function DataGrid({
   headers,

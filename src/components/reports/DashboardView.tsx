@@ -17,7 +17,7 @@ import { useUIStore } from '@/stores/useUIStore'
 import { 
   Activity, MapPin, Truck, AlertTriangle, 
   CheckCircle2, ShieldAlert, BarChart2,
-  X, Droplet, Clock, Navigation, LayoutDashboard, Database
+  X, Clock, Navigation, LayoutDashboard, Database
 } from 'lucide-react'
 
 ChartJS.register(
