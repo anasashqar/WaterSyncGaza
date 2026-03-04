@@ -56,8 +56,8 @@ export function PointsLayer() {
                     <span style={{ color: '#64748b' }}>●</span> {point.population.toLocaleString()} مستفيد
                   </div>
                 )}
-                <div style={{ fontSize: '0.75rem', color: point.visitedByTrucks.length > 0 ? '#2E86AB' : '#ef4444', marginTop: 6 }}>
-                  {point.visitedByTrucks.length > 0
+                <div style={{ fontSize: '0.75rem', color: point.visitedByTrucks?.length > 0 ? '#2E86AB' : '#ef4444', marginTop: 6 }}>
+                  {point.visitedByTrucks?.length > 0
                     ? `زارتها: ${point.visitedByTrucks.length} شاحنات`
                     : 'لم تتم الزيارة بعد'}
                 </div>

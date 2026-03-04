@@ -45,6 +45,7 @@ export function LayerEditorPanel({ onClose, initialTab = 'tools' }: { onClose: (
   const addPoint = useDataStore(s => s.addPoint)
   const setStations = useDataStore(s => s.setStations)
   const setPoints = useDataStore(s => s.setPoints)
+  const clearAll = useDataStore(s => s.clearAll)
   const addNotification = useUIStore(s => s.addNotification)
   const flyTo = useMapStore(s => s.flyTo)
   const mode = useMapStore(s => s.mode)
@@ -334,6 +335,26 @@ export function LayerEditorPanel({ onClose, initialTab = 'tools' }: { onClose: (
                 <ActionBtn icon={<FileSpreadsheet size={14} />} label="تصدير CSV" onClick={() => doExport('csv')} />
                 <ActionBtn icon={<FileJson size={14} />} label="سحب ملف هنا" onClick={() => fileRef.current?.click()} muted />
               </div>
+            </Section>
+
+            {/* Clear Data */}
+            <Section title="مسح النظام">
+              <button onClick={() => {
+                if(window.confirm('هل أنت متأكد من مسح جميع البيانات (محطات، نقاط، مناطق خطرة، رحلات)؟ هذه العملية لا يمكن التراجع عنها.')) {
+                  clearAll();
+                  addNotification('تم مسح جميع البيانات بنجاح', 'success');
+                }
+              }} style={{
+                padding: '8px 10px', borderRadius: 8, fontSize: '0.75rem', fontWeight: 600,
+                fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.2s',
+                background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.4)',
+                color: 'rgb(239, 68, 68)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'; e.currentTarget.style.borderColor = 'rgb(239, 68, 68)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.4)' }}
+              >
+                <Trash2 size={16} /> مسح جميع البيانات بأمان
+              </button>
             </Section>
 
             {/* OSM Search */}

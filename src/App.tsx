@@ -4,7 +4,7 @@ import { GAZA_BOUNDS } from '@/lib/constants/geography'
 import { useUIStore } from '@/stores/useUIStore'
 import { useDatabaseStore } from '@/stores/useDatabaseStore'
 import { useMapStore } from '@/stores/useMapStore'
-import { MapSetup, MapClickHandler, StationsLayer, PointsLayer, RoutesLayer, ExclusionZonesLayer, GovernoratesLayer, NeighborhoodsLayer, StreetsLayer, SpatialAnalysisControls, SimulationLayer } from '@/components/map'
+import { MapSetup, MapClickHandler, StationsLayer, PointsLayer, RoutesLayer, ExclusionZonesLayer, GovernoratesLayer, NeighborhoodsLayer, StreetsLayer, BufferZoneLayer, SpatialAnalysisControls, SimulationLayer } from '@/components/map'
 import { AppToolbar } from '@/components/toolbar'
 import { Sidebar } from '@/components/sidebar'
 import { ToastContainer, NotificationTester, SimulationPanel } from '@/components/ui'
@@ -126,6 +126,7 @@ function App() {
               />
             )}
 
+            <BufferZoneLayer />
             <GovernoratesLayer />
             <NeighborhoodsLayer />
             <StreetsLayer />

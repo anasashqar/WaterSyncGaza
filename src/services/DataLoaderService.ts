@@ -108,36 +108,17 @@ export class DataLoaderService {
         if (bzRes.ok) {
           const bzData = await bzRes.json()
           if (bzData.features) {
-            const { addExclusionZone, exclusionZones } = useDataStore.getState()
-            // Only add if not already present
-            const hasYellowLine = exclusionZones.some(z => z.id === 'yellow_line')
-            if (!hasYellowLine) {
-              // Find the Yellow Line danger_area feature (largest polygon)
-              const yellowLine = bzData.features.find((f: any) => 
-                f.properties?.name === 'Yellow Line' || 
-                (f.properties?.military === 'danger_area' && f.geometry?.coordinates?.[0]?.length > 50)
-              )
-              if (yellowLine) {
-                const coords = yellowLine.geometry.coordinates[0] as [number, number][]
-                // Convert [lng, lat] to [lat, lng] for our system
-                const path = coords.map((c: [number, number]) => [c[1], c[0]] as [number, number])
-                const lats = coords.map((c: [number, number]) => c[1])
-                const lngs = coords.map((c: [number, number]) => c[0])
-                const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2
-                const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2
-
-                addExclusionZone({
-                  id: 'yellow_line',
-                  name: 'المنطقة الصفراء (العازلة)',
-                  type: 'danger',
-                  lat: centerLat,
-                  lng: centerLng,
-                  active: true,
-                  shape: 'polygon',
-                  path: path
-                })
-                console.log(`[OK] Yellow Line buffer zone loaded (${path.length} points)`)
-              }
+            const { setBufferZoneFeature } = useMapStore.getState()
+            
+            // Find the Yellow Line danger_area feature (largest polygon)
+            const yellowLine = bzData.features.find((f: any) => 
+              f.properties?.name === 'Yellow Line' || 
+              (f.properties?.military === 'danger_area' && f.geometry?.coordinates?.[0]?.length > 50)
+            )
+            
+            if (yellowLine) {
+              setBufferZoneFeature(yellowLine)
+              console.log(`[OK] Yellow Line buffer zone feature loaded`)
             }
           }
         }

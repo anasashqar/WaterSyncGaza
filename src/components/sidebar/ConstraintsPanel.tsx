@@ -114,6 +114,7 @@ export function ConstraintsPanel() {
     { key: 'gov', label: 'المحافظات' },
     { key: 'neigh', label: 'الأحياء' },
     { key: 'streets', label: 'الشوارع' },
+    { key: 'bufferZone', label: 'المنطقة العازلة (الصفراء)' },
   ]
 
   const WORK_LAYERS = [

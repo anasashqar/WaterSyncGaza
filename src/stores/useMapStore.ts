@@ -20,9 +20,11 @@ interface MapState {
   // GeoJSON data (for spatial lookups)
   govFeatures: GeoJSONFeature[]
   neighFeatures: GeoJSONFeature[]
+  bufferZoneFeature?: GeoJSONFeature | null
   streetsGeoJSON?: GeoJSONData
   setGovFeatures: (features: GeoJSONFeature[]) => void
   setNeighFeatures: (features: GeoJSONFeature[]) => void
+  setBufferZoneFeature: (feature: GeoJSONFeature) => void
 
   // Spatial lookups (created from features)
   findGovernorate: (lat: number, lng: number) => string | null
@@ -82,6 +84,8 @@ export const useMapStore = create<MapState>((set, get) => ({
     const lookup = createNeighborhoodLookup(features)
     set({ neighFeatures: features, findNeighborhood: lookup })
   },
+  bufferZoneFeature: null,
+  setBufferZoneFeature: (feature) => set({ bufferZoneFeature: feature }),
 
   findGovernorate: () => null,
   findNeighborhood: () => null,
@@ -107,6 +111,7 @@ export const useMapStore = create<MapState>((set, get) => ({
     baseMap: true,
     gov: true,
     neigh: true,
+    bufferZone: true,
     streets: false,
     stations: true,
     points: true,
@@ -131,6 +136,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   layerColors: {
     gov: '#6b21a8',     // Purple
     neigh: '#0ea5e9',   // Blue
+    bufferZone: '#eab308', // Yellow/Amber
     streets: '#334155', // Slate
     stations: '#7e22ce',// Purple Custom
     points: '#e11d48',  // Rose
