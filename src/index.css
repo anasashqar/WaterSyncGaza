@@ -1,0 +1,392 @@
+﻿@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap");
+@import "tailwindcss";
+
+/* =================================================
+   WaterSync — Design System
+   ================================================= */
+
+/* ============================================
+   1. Dark Theme (Default)
+   ============================================ */
+:root,
+[data-theme="dark"] {
+  /* Core Colors */
+  --primary: #3b82f6; /* Vibrant Blue accent */
+  --primary-light: #60a5fa;
+  --primary-soft: rgba(59, 130, 246, 0.15);
+  --primary-deep: #0a1120; /* Deep Navy for headers */
+  --accent: #22d3ee; /* Brighter Cyan */
+  --accent-glow: rgba(34, 211, 238, 0.4);
+
+  /* Backgrounds — Slate scale with clear layer separation */
+  --bg-dark: #0f172a; /* Slate-900: main background */
+  --bg-card: #1e293b; /* Slate-800: cards & panels */
+  --bg-elevated: #334155; /* Slate-700: headers, hovers, elevated surfaces */
+  --bg-hover: rgba(255, 255, 255, 0.08);
+
+  /* Status Colors */
+  --success: #10b981;
+  --success-soft: rgba(16, 185, 129, 0.15);
+  --warning: #f59e0b;
+  --warning-soft: rgba(245, 158, 11, 0.15);
+  --danger: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.15);
+  --critical: #b91c1c;
+
+  /* Data viz Colors */
+  --station: #a855f7;
+  --route: #0ea5e9;
+
+  /* Text & Borders */
+  --text: #f1f5f9; /* Slate-100: readable without being harsh white */
+  --text-main: #e2e8f0; /* Slate-200: primary readable text */
+  --text-muted: #94a3b8; /* Slate-400 */
+  --border: rgba(148, 163, 184, 0.2); /* Slate-400 at 20% */
+
+  /* Glassmorphism & Depth */
+  --glass: rgba(15, 23, 42, 0.75);
+  --glass-border: rgba(148, 163, 184, 0.12); /* Visible borders */
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+
+  /* Modern Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 20px var(--accent-glow);
+
+  /* Typography */
+  --font-sans: "IBM Plex Sans Arabic", "Tajawal", sans-serif;
+}
+
+/* ============================================
+   2. Light Theme
+   ============================================ */
+[data-theme="light"] {
+  --primary: #2563eb;
+  --primary-light: #3b82f6;
+  --primary-soft: rgba(37, 99, 235, 0.1);
+  --primary-deep: #1e3a8a;
+  --accent: #0284c7;
+  --accent-glow: rgba(2, 132, 199, 0.3);
+
+  --bg-dark: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-elevated: #f8fafc;
+  --bg-hover: rgba(37, 99, 235, 0.06);
+
+  --success: #059669;
+  --success-soft: #d1fae5;
+  --warning: #d97706;
+  --warning-soft: #fef3c7;
+  --danger: #dc2626;
+  --danger-soft: #fee2e2;
+  --critical: #991b1b;
+
+  --station: #7c3aed;
+  --route: #0891b2;
+
+  --text: #0f172a;
+  --text-main: #1e293b;
+  --text-muted: #475569;
+  --border: #cbd5e1;
+
+  --glass: rgba(255, 255, 255, 0.9);
+  --glass-border: #e2e8f0;
+  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08);
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.15);
+  --shadow-glow: 0 0 20px var(--accent-glow);
+}
+
+/* ============================================
+   3. Global Reset
+   ============================================ */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  background: var(--bg-dark);
+  color: var(--text);
+  direction: rtl;
+}
+
+/* ============================================
+   4. Theme Transition
+   ============================================ */
+html.theme-transitioning,
+html.theme-transitioning * {
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    color 0.3s ease,
+    box-shadow 0.3s ease !important;
+}
+
+/* ============================================
+   5. Scrollbars
+   ============================================ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-dark);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ============================================
+   6. Leaflet Overrides
+   ============================================ */
+.leaflet-popup-content-wrapper {
+  background: var(--bg-card) !important;
+  color: var(--text) !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--glass-border) !important;
+  backdrop-filter: blur(10px) !important;
+  box-shadow: var(--shadow-lg) !important;
+  padding: 0 !important;
+}
+.leaflet-popup-content {
+  margin: 14px 16px !important;
+  font-family: var(--font-sans) !important;
+  font-size: 0.85rem !important;
+  direction: rtl !important;
+}
+.leaflet-popup-tip {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--glass-border) !important;
+}
+.leaflet-popup-close-button {
+  color: var(--text-muted) !important;
+  font-size: 20px !important;
+}
+[data-theme="light"] .leaflet-popup-content-wrapper,
+[data-theme="light"] .leaflet-popup-tip {
+  background: #fff !important;
+  color: #0f172a !important;
+  box-shadow: var(--shadow-md) !important;
+}
+.leaflet-control-zoom a {
+  background: var(--bg-card) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+}
+.minimal-geo-icon {
+  border: none !important;
+  background: transparent !important;
+}
+
+/* ============================================
+   7. Animations (from original)
+   ============================================ */
+@keyframes hero-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 15px rgba(5, 150, 105, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(5, 150, 105, 0.6);
+    transform: scale(1.02);
+  }
+}
+@keyframes dotPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+@keyframes dropdownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+    scale: 0.95;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    scale: 1;
+  }
+}
+@keyframes toastSlideIn {
+  from {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@keyframes toastSlideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+}
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+@keyframes slideInRight {
+  from {
+    transform: translateX(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes toastProgress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* ============================================
+   8. Light Theme Overrides
+   ============================================ */
+[data-theme="light"] .leaflet-container {
+  background: #f1f5f9 !important;
+}
+/* Map Labels - Elegant & Minimal Style */
+.map-label {
+  background: var(--bg-elevated);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+  transition: all 0.2s;
+  opacity: 0.95;
+}
+
+/* Remove default Leaflet tooltip triangle and extra padding */
+.leaflet-tooltip.map-label::before,
+.leaflet-tooltip.street-label::before {
+  display: none;
+}
+.leaflet-tooltip.map-label,
+.leaflet-tooltip.street-label {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* Specific Label Adjustments */
+.map-label-governorates {
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 6px 14px;
+  background: var(--bg-card);
+  border: 1px solid rgba(139, 92, 246, 0.4); /* Subtly purple border */
+  color: var(--text-main);
+}
+
+.map-label-neighborhoods {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  background: var(--bg-card);
+  border: 1px solid rgba(14, 165, 233, 0.4); /* Subtly cyan border */
+  color: var(--text-muted);
+}
+
+.street-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.map-label-governorates:hover,
+.map-label-neighborhoods:hover,
+.street-label:hover {
+  transform: scale(1.05);
+  border-color: var(--primary);
+  color: var(--text-main);
+  z-index: 1000 !important;
+}
+
+/* ============================================
+   9. Exclusion Zones
+   ============================================ */
+@keyframes exclusionPulse {
+  0% {
+    opacity: 0.6;
+    stroke-width: 2px;
+    filter: drop-shadow(0 0 2px currentColor);
+  }
+  50% {
+    opacity: 1;
+    stroke-width: 4px;
+    filter: drop-shadow(0 0 10px currentColor);
+  }
+  100% {
+    opacity: 0.6;
+    stroke-width: 2px;
+    filter: drop-shadow(0 0 2px currentColor);
+  }
+}
+
+.exclusion-zone-active path {
+  animation: exclusionPulse 2s infinite ease-in-out;
+  stroke-dasharray: 8, 8 !important; /* Dotted edge for forbidden area */
+  stroke-linecap: round;
+  transform-origin: center;
+}
+
+.exclusion-zone-inactive path {
+  opacity: 0.3 !important;
+  stroke-dasharray: 4, 12 !important;
+}
