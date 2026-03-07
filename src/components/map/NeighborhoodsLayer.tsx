@@ -33,10 +33,15 @@ export function NeighborhoodsLayer() {
 
   const points = useDataStore((s) => s.points)
   const distributionCount = useDataStore((s) => s.distributionCount)
+  const activeNGOFilter = useDataStore((s) => s.activeNGOFilter)
+  const trips = useDataStore((s) => s.trips)
   const geoJsonRef = useRef<L.GeoJSON>(null)
 
   // Whether distribution has been run at least once
   const hasDistributed = distributionCount > 0
+
+  // Whether we're in NGO-specific view
+  const isNGOView = !!activeNGOFilter
 
   /**
    * Pre-build bounding boxes for each feature for fast filtering.
@@ -59,7 +64,7 @@ export function NeighborhoodsLayer() {
    * Maps feature index → { total, reached }
    */
   const featureStats = useMemo(() => {
-    const statsMap = new Map<number, { total: number; reached: number }>()
+    const statsMap = new Map<number, { total: number; reached: number; reachedByOthers: number; reachedByMe: number }>()
     if (!hasDistributed || !features || features.length === 0 || points.length === 0) return statsMap
 
     for (const point of points) {
@@ -77,10 +82,27 @@ export function NeighborhoodsLayer() {
         }
 
         if (isPointInFeature(point.lat, point.lng, feature.geometry)) {
-          const existing = statsMap.get(i) || { total: 0, reached: 0 }
+          const existing = statsMap.get(i) || { total: 0, reached: 0, reachedByOthers: 0, reachedByMe: 0 }
           existing.total += 1
           if (point.visitedByTrucks && point.visitedByTrucks.length > 0) {
             existing.reached += 1
+          }
+          // NGO-specific tracking
+          if (isNGOView && activeNGOFilter) {
+            // Check if this point was visited by any truck
+            const visitedByMe = point.reservedBy === activeNGOFilter
+            const visitedByOther = point.reservedBy && point.reservedBy !== activeNGOFilter
+            // Also check trips for coverage
+            const coveredByMe = trips.some((t: any) =>
+              t.institution?.id === activeNGOFilter &&
+              t.stops?.some((s: any) => s.pointId === point.id)
+            )
+            const coveredByOther = trips.some((t: any) =>
+              t.institution?.id !== activeNGOFilter &&
+              t.stops?.some((s: any) => s.pointId === point.id)
+            )
+            if (visitedByMe || coveredByMe) existing.reachedByMe += 1
+            if (visitedByOther || coveredByOther) existing.reachedByOthers += 1
           }
           statsMap.set(i, existing)
           break // Each point belongs to one neighborhood only
@@ -89,7 +111,7 @@ export function NeighborhoodsLayer() {
     }
 
     return statsMap
-  }, [points, features, featureBBoxes, hasDistributed])
+  }, [points, features, featureBBoxes, hasDistributed, isNGOView, activeNGOFilter, trips])
 
   const getFeatureStyle = (_feature: any, isHovered = false, featureIndex?: number) => {
     let fillColor = baseColor
@@ -99,22 +121,45 @@ export function NeighborhoodsLayer() {
 
     // Only colorize after distribution
     if (hasDistributed && featureIndex !== undefined && featureStats.has(featureIndex)) {
-      const { total, reached } = featureStats.get(featureIndex)!
-      if (reached === 0) {
-        // 🔴 Red - Not reached at all
-        fillColor = '#ef4444'
-        color = '#dc2626'
-        fillOpacity = isHovered ? 0.50 : 0.30
-      } else if (reached < total) {
-        // 🟠 Orange - Partially reached
-        fillColor = '#f97316'
-        color = '#ea580c'
-        fillOpacity = isHovered ? 0.50 : 0.30
+      const stats = featureStats.get(featureIndex)!
+
+      if (isNGOView) {
+        // NGO-specific view:
+        // 🟢 Green = covered by OTHER institutions (already handled)
+        // 🔴 Red = NOT covered by any institution at all
+        // 🔵 Blue (default) = covered by MY institution
+        if (stats.reachedByMe > 0) {
+          // My institution covers this area — primary blue
+          fillColor = '#3b82f6'
+          color = '#2563eb'
+          fillOpacity = isHovered ? 0.50 : 0.30
+        } else if (stats.reachedByOthers > 0) {
+          // Other institutions cover this area — green
+          fillColor = '#22c55e'
+          color = '#16a34a'
+          fillOpacity = isHovered ? 0.50 : 0.30
+        } else {
+          // Not covered by ANY institution — red
+          fillColor = '#ef4444'
+          color = '#dc2626'
+          fillOpacity = isHovered ? 0.50 : 0.30
+        }
       } else {
-        // 🟢 Green - Fully reached
-        fillColor = '#22c55e'
-        color = '#16a34a'
-        fillOpacity = isHovered ? 0.50 : 0.30
+        // Admin view (original behavior)
+        const { total, reached } = stats
+        if (reached === 0) {
+          fillColor = '#ef4444'
+          color = '#dc2626'
+          fillOpacity = isHovered ? 0.50 : 0.30
+        } else if (reached < total) {
+          fillColor = '#f97316'
+          color = '#ea580c'
+          fillOpacity = isHovered ? 0.50 : 0.30
+        } else {
+          fillColor = '#22c55e'
+          color = '#16a34a'
+          fillOpacity = isHovered ? 0.50 : 0.30
+        }
       }
     }
 
@@ -131,7 +176,7 @@ export function NeighborhoodsLayer() {
       }
       idx++
     })
-  }, [featureStats, baseColor, hasDistributed])
+  }, [featureStats, baseColor, hasDistributed, isNGOView])
 
   if (!visible || !features || features.length === 0) return null
 
@@ -141,7 +186,7 @@ export function NeighborhoodsLayer() {
   return (
     <GeoJSON
       ref={geoJsonRef}
-      key={features.length + '-' + String(showLabels) + '-' + distributionCount}
+      key={features.length + '-' + String(showLabels) + '-' + distributionCount + '-' + (activeNGOFilter || 'all')}
       data={features as any}
       style={(feature) => {
         const idx = features.indexOf(feature as any)

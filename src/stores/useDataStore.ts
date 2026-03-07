@@ -22,6 +22,8 @@ interface DataState {
   distributionCount: number
   /** Delivery records for field execution (Plan 3 — Phase 3) */
   deliveries: DeliveryRecord[]
+  /** When set, only this NGO's routes/coverage are shown on the map */
+  activeNGOFilter: string | null
 
   // Station CRUD
   addStation: (station: Station) => void
@@ -54,6 +56,7 @@ interface DataState {
   // Bulk operations
   clearAll: () => void
   incrementDistribution: () => void
+  _setActiveNGOFilter: (ngoId: string | null) => void
 
   // Computed helpers
   getStationById: (id: string) => Station | undefined
@@ -70,6 +73,9 @@ interface DataState {
   // ── Delivery Records (Plan 3 — Phase 3 placeholder) ──
   addDelivery: (delivery: DeliveryRecord) => void
   updateDelivery: (id: string, updates: Partial<DeliveryRecord>) => void
+
+  // ── Offline Sync Engine ──
+  syncPendingDeliveries: () => Promise<void>
 }
 
 /** Get end-of-day timestamp for today */
@@ -88,6 +94,7 @@ export const useDataStore = create<DataState>((set, get) => ({
   institutions: [],
   distributionCount: 0,
   deliveries: [],
+  activeNGOFilter: null,
 
   // Station CRUD
   addStation: (station) => set((s) => ({ stations: [...s.stations, station] })),
@@ -144,12 +151,14 @@ export const useDataStore = create<DataState>((set, get) => ({
         newInstitutions = newInstitutions.map(i => {
            if (i.name === institution.name) {
               const stationIds = i.stationIds.includes(toAdd) ? i.stationIds : [...i.stationIds, toAdd]
-              return { ...i, stationIds, trucks: i.trucks + institution.trucks }
+              const prevContracts = i.contracts || []
+              const contracts = [...prevContracts.filter(c => c.stationId !== toAdd), { stationId: toAdd, trucks: institution.trucks }]
+              return { ...i, stationIds, contracts, trucks: i.trucks + institution.trucks }
            }
            return i
         })
       } else {
-        newInstitutions.push(institution)
+        newInstitutions.push({ ...institution, contracts: [{ stationId: toAdd, trucks: institution.trucks }] })
       }
 
       const stations = s.stations.map((st) => {
@@ -220,6 +229,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       distributionCount: 0,
     }),
   incrementDistribution: () => set((s) => ({ distributionCount: s.distributionCount + 1 })),
+  _setActiveNGOFilter: (ngoId) => set({ activeNGOFilter: ngoId }),
 
   // Computed
   getStationById: (id) => get().stations.find((s) => s.id === id),
@@ -352,7 +362,47 @@ export const useDataStore = create<DataState>((set, get) => ({
         d.id === id ? { ...d, ...updates } : d
       ),
     })),
+
+  // ── Offline Sync Engine ──
+  syncPendingDeliveries: async () => {
+    if (!navigator.onLine) return
+
+    set((s) => {
+      const pending = s.deliveries.filter(d => d.pendingSync)
+      if (pending.length === 0) return s
+
+      // Simulate sending to backend
+      console.log(`[Sync Worker] Syncing ${pending.length} pending deliveries to server...`)
+
+      // Update state: Mark all as synced
+      const syncedDeliveries = s.deliveries.map(d => 
+        d.pendingSync ? { ...d, pendingSync: false } : d
+      )
+
+      // Update IDB asynchronously
+      import('@/stores/useDatabaseStore').then(({ useDatabaseStore }) => {
+        pending.forEach(d => {
+           useDatabaseStore.getState().saveDelivery({ ...d, pendingSync: false })
+        })
+      })
+
+      // Optionally show a global Toast (if we can inject UIStore)
+      import('@/stores/useUIStore').then(({ useUIStore }) => {
+         useUIStore.getState().addNotification(`تمت مزامنة ${pending.length} عمليات تسليم بنجاح!`, 'success')
+      })
+
+      return { deliveries: syncedDeliveries }
+    })
+  }
 }))
+
+// ── Background Sync Listener ──
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+     console.log('[Network] Reconnected! Triggering Background Sync...')
+     useDataStore.getState().syncPendingDeliveries()
+  })
+}
 
 // ── Enable Cross-Tab Sync for multi-window testing ──
 enableCrossTabSync(useDataStore)

@@ -13,7 +13,7 @@ import {
   X, Truck, MapPin, CheckCircle2,
   Droplets, Wifi, WifiOff, User,
   Shield, AlertTriangle, ArrowLeft, Navigation,
-  Package,
+  Package, Eye, Route, ChevronDown, ChevronRight,
 } from 'lucide-react'
 
 /* ═══════ Types ═══════ */
@@ -51,6 +51,8 @@ export function DriverFieldView({ onClose }: { onClose: () => void }) {
   const [confirmingPoint, setConfirmingPoint] = useState<Point | null>(null)
   const [gps, setGPS] = useState<GPSPosition | null>(null)
   const [isOnline, setIsOnline] = useState(true)
+  const [showPreview, setShowPreview] = useState(false)
+  const trips = useDataStore((s) => s.trips)
 
   // ── Get assigned tasks ──
   const myTasks = useMemo(() => {
@@ -72,6 +74,12 @@ export function DriverFieldView({ onClose }: { onClose: () => void }) {
     () => institutions.find((n) => n.id === institutionId) ?? null,
     [institutions, institutionId]
   )
+
+  // Get my institution's trips
+  const myTrips = useMemo(() => {
+    if (!institutionId) return trips
+    return trips.filter((t: any) => t.institution?.id === institutionId)
+  }, [trips, institutionId])
 
   // ── GPS polling ──
   useEffect(() => {
@@ -138,6 +146,18 @@ export function DriverFieldView({ onClose }: { onClose: () => void }) {
     },
     [institutionId, isOnline, addDelivery, updateReservationStatus, updateDelivery, addNotification]
   )
+
+  // ══════ Trip Preview Screen ══════
+  if (showPreview) {
+    return (
+      <TripPreviewScreen
+        trips={myTrips}
+        ngoName={myNGO?.name || 'غير محدد'}
+        ngoColor={myNGO?.color || '#3b82f6'}
+        onClose={() => setShowPreview(false)}
+      />
+    )
+  }
 
   // ══════ Confirmation Screen ══════
   if (confirmingPoint) {
@@ -239,6 +259,24 @@ export function DriverFieldView({ onClose }: { onClose: () => void }) {
           <span style={{ fontSize: '0.55rem', color: 'var(--primary)', opacity: 0.8, fontWeight: 700 }}>متبقي</span>
         </div>
       </div>
+
+      {/* ──── Trip Preview Button ──── */}
+      {myTrips.length > 0 && (
+        <button
+          onClick={() => setShowPreview(true)}
+          style={{
+            margin: '0 12px', padding: '10px 16px', borderRadius: 12,
+            background: 'var(--bg-card)', border: '1.5px solid rgba(37,99,235,0.3)',
+            color: 'var(--primary)', fontSize: '0.85rem', fontWeight: 700,
+            cursor: 'pointer', fontFamily: 'inherit',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            boxShadow: 'var(--shadow-sm)', transition: 'all 0.2s',
+            flexShrink: 0,
+          }}
+        >
+          <Eye size={18} /> معاينة الرحلات ({myTrips.length})
+        </button>
+      )}
 
       {/* ──── Tasks List ──── */}
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 12px' }}>
@@ -544,7 +582,10 @@ function CompletedMini({ point, delivery }: { point: Point; delivery?: DeliveryR
     }}>
       <span style={{ fontSize: '1.2rem' }}>{isVerified ? '✅' : '📦'}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text)' }}>{point.name}</div>
+        <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text)' }}>
+           {point.name}
+           {delivery?.pendingSync && <span title="بانتظار المزامنة التلقائية عند عودة الإنترنت" style={{fontSize: '0.7rem', marginLeft: 6}}>🔄</span>}
+        </div>
         <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', gap: 6, marginTop: 4 }}>
           <span>💧 {delivery?.liters?.toLocaleString() || point.demand.toLocaleString()} لتر</span>
           {delivery?.receipt?.receiverName && <span>👤 {delivery.receipt.receiverName}</span>}
@@ -552,10 +593,10 @@ function CompletedMini({ point, delivery }: { point: Point; delivery?: DeliveryR
       </div>
       <span style={{
         padding: '4px 10px', borderRadius: 20, fontSize: '0.65rem', fontWeight: 700,
-        background: isVerified ? 'var(--success-soft)' : 'var(--bg-elevated)',
-        color: isVerified ? 'var(--success)' : 'var(--text-muted)',
+        background: delivery?.pendingSync ? 'var(--warning-soft)' : (isVerified ? 'var(--success-soft)' : 'var(--bg-elevated)'),
+        color: delivery?.pendingSync ? 'var(--warning)' : (isVerified ? 'var(--success)' : 'var(--text-muted)'),
       }}>
-        {isVerified ? 'مؤكّد' : 'بانتظار التحقق'}
+        {delivery?.pendingSync ? 'قيد المزامنة' : (isVerified ? 'مؤكّد' : 'تم التسليم')}
       </span>
     </div>
   )
@@ -602,4 +643,196 @@ const fieldInputStyle: React.CSSProperties = {
   background: 'var(--bg-elevated)', border: '1.5px solid var(--glass-border)',
   color: 'var(--text)', fontSize: '0.9rem', fontFamily: 'inherit', outline: 'none',
   transition: 'border-color 0.2s, box-shadow 0.2s',
+}
+
+/* ═══════════════════════════════════════════
+   Trip Preview Screen — شاشة معاينة الرحلات
+   للسائق فقط: عرض فقط بدون تنفيذ
+   ═══════════════════════════════════════════ */
+function TripPreviewScreen({ trips, ngoName, ngoColor, onClose }: {
+  trips: any[]
+  ngoName: string
+  ngoColor: string
+  onClose: () => void
+}) {
+  const [expandedTrip, setExpandedTrip] = useState<string | null>(null)
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 3000,
+      background: 'var(--bg-dark)', color: 'var(--text)',
+      display: 'flex', flexDirection: 'column',
+      fontFamily: 'inherit',
+    }}>
+      {/* Header */}
+      <div style={{
+        background: `linear-gradient(135deg, ${ngoColor}F2 0%, rgba(15,23,42,0.95) 100%)`,
+        backdropFilter: 'blur(10px)', color: '#ffffff',
+        display: 'flex', alignItems: 'center',
+        padding: '0 24px', height: 60, flexShrink: 0,
+        gap: 12,
+        boxShadow: 'var(--shadow-md)',
+      }}>
+        <button onClick={onClose} style={{
+          background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
+          color: '#fff', cursor: 'pointer', padding: 8, borderRadius: 10,
+          display: 'flex', alignItems: 'center',
+        }}>
+          <ArrowLeft size={18} />
+        </button>
+        <Eye size={22} />
+        <div>
+          <div style={{ fontSize: '1rem', fontWeight: 800 }}>معاينة الرحلات</div>
+          <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{ngoName} — للعرض فقط</div>
+        </div>
+      </div>
+
+      {/* Summary Bar */}
+      <div style={{
+        padding: '12px 16px', background: 'var(--bg-card)',
+        borderBottom: '1px solid var(--glass-border)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20,
+        fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)',
+      }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Route size={14} color={ngoColor} /> {trips.length} رحلة
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Droplets size={14} color="#3b82f6" />
+          {trips.reduce((s: number, t: any) => s + (t.demand || 0), 0).toLocaleString()} لتر
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Navigation size={14} color="#10b981" />
+          {trips.reduce((s: number, t: any) => s + (t.distance || 0), 0).toFixed(1)} كم
+        </span>
+      </div>
+
+      {/* Trip List */}
+      <div style={{ flex: 1, overflow: 'auto', padding: '16px 12px' }}>
+        <div style={{ maxWidth: 500, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {trips.length === 0 ? (
+            <div style={{
+              textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)',
+            }}>
+              <Route size={56} style={{ marginBottom: 16, opacity: 0.3 }} />
+              <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: 4, color: 'var(--text)' }}>لا توجد رحلات مجدولة</div>
+              <div style={{ fontSize: '0.8rem' }}>ستظهر هنا المسارات بعد تخطيط التوزيع</div>
+            </div>
+          ) : (
+            trips.map((trip: any, idx: number) => {
+              const isExpanded = expandedTrip === trip.id
+              const stops = trip.stops || []
+
+              return (
+                <div key={trip.id} style={{
+                  background: 'var(--bg-card)', borderRadius: 16,
+                  border: '1px solid var(--glass-border)',
+                  overflow: 'hidden', boxShadow: 'var(--shadow-sm)',
+                }}>
+                  {/* Trip Header */}
+                  <div
+                    onClick={() => setExpandedTrip(isExpanded ? null : trip.id)}
+                    style={{
+                      padding: '14px 16px', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 12,
+                    }}
+                  >
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 12,
+                      background: `${ngoColor}15`, border: `1.5px solid ${ngoColor}30`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '1rem', fontWeight: 900, color: ngoColor,
+                      flexShrink: 0,
+                    }}>
+                      {idx + 1}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)' }}>
+                        {trip.name || `رحلة ${idx + 1}`}
+                      </div>
+                      <div style={{
+                        fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600,
+                        display: 'flex', gap: 8, marginTop: 4,
+                      }}>
+                        <span>{stops.length} نقاط</span>
+                        <span>•</span>
+                        <span>{(trip.distance || 0).toFixed(1)} كم</span>
+                        <span>•</span>
+                        <span style={{ color: ngoColor }}>{(trip.demand || 0).toLocaleString()} لتر</span>
+                      </div>
+                    </div>
+                    <div style={{ color: 'var(--text-muted)' }}>
+                      {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                    </div>
+                  </div>
+
+                  {/* Expanded Stop Details */}
+                  {isExpanded && (
+                    <div style={{
+                      padding: '0 16px 16px 32px',
+                      borderTop: '1px solid var(--glass-border)',
+                      animation: 'fadeIn 0.2s ease',
+                    }}>
+                      {/* Station Start */}
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '12px 0 6px', position: 'relative',
+                      }}>
+                        <div style={{
+                          width: 16, height: 16, borderRadius: 4,
+                          background: ngoColor, flexShrink: 0,
+                        }} />
+                        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text)' }}>
+                          🏭 {trip.station?.name || 'محطة الانطلاق'}
+                        </span>
+                      </div>
+
+                      {/* Stops */}
+                      {stops.map((stop: any, si: number) => (
+                        <div key={stop.id || si} style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '6px 0',
+                          borderRight: `2px solid ${ngoColor}30`,
+                          marginRight: 7,
+                          paddingRight: 14,
+                        }}>
+                          <div style={{
+                            width: 14, height: 14, borderRadius: '50%',
+                            background: '#10b981', flexShrink: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            <span style={{ fontSize: '0.45rem', color: '#fff', fontWeight: 800 }}>{si + 1}</span>
+                          </div>
+                          <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text)' }}>{stop.name}</span>
+                            <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 600 }}>
+                              {(stop.demand || 0).toLocaleString()} لتر
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Return */}
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '6px 0', opacity: 0.6,
+                      }}>
+                        <div style={{
+                          width: 16, height: 16, borderRadius: 4,
+                          background: 'var(--text-muted)', flexShrink: 0,
+                        }} />
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          ↩ العودة للمحطة
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }

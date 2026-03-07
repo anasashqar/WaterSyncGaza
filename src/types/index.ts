@@ -32,6 +32,7 @@ export interface Institution {
   trucks: number
   color: string
   stationIds: string[]
+  contracts?: { stationId: string; trucks: number }[]
 }
 
 /** Distribution demand point */

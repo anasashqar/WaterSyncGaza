@@ -8,7 +8,7 @@ import { useDataStore } from "@/stores/useDataStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { calculateMDCVRP } from "@/lib/engine/mdcvrp";
 import {
-  Calculator,
+  Route,
   Moon,
   Sun,
   PanelLeftClose,
@@ -78,14 +78,42 @@ export function AppToolbar({
     if (totalInstitutions === 0)
       return addNotification("يرجى إضافة مؤسسات للمحطات أولاً", "warning");
 
+    // For NGOs: filter stations to only those the NGO has contracted with
+    let inputStations = [...stations];
+    let inputPoints = [...points];
+    if (isNGO && institutionId) {
+      // Only use stations that have this institution
+      inputStations = stations.filter(st =>
+        st.institutions.some(inst => inst.id === institutionId)
+      ).map(st => ({
+        ...st,
+        // Keep only this institution's data in the station
+        institutions: st.institutions.filter(inst => inst.id === institutionId),
+        trucks: st.institutions.filter(inst => inst.id === institutionId).reduce((s, i) => s + i.trucks, 0),
+      }));
+      if (inputStations.length === 0)
+        return addNotification("لم يتم التعاقد مع أي محطة بعد", "warning");
+    }
+
     const result = calculateMDCVRP({
-      stations: [...stations],
-      points: [...points],
+      stations: inputStations,
+      points: inputPoints,
       exclusionZones,
       graph,
       findGovernorate,
     });
-    setTrips(result.trips);
+
+    if (isNGO && institutionId) {
+      // NGO mode: only show this institution's trips, store activeNGOFilter
+      const ngoTrips = result.trips.filter((t: any) => t.institution?.id === institutionId);
+      setTrips(ngoTrips);
+      // Set the active NGO distribution filter
+      useDataStore.getState()._setActiveNGOFilter(institutionId);
+    } else {
+      // Admin mode: show all trips
+      setTrips(result.trips);
+      useDataStore.getState()._setActiveNGOFilter(null);
+    }
     setPoints([...points]);
     incrementDistribution();
     if (result.unservedPoints.length > 0) {
@@ -94,7 +122,8 @@ export function AppToolbar({
         "warning",
       );
     } else {
-      addNotification(`تم حساب ${result.trips.length} رحلة بنجاح`, "success");
+      const tripCount = isNGO ? result.trips.filter((t: any) => t.institution?.id === institutionId).length : result.trips.length;
+      addNotification(`تم تخطيط ${tripCount} مسار بنجاح`, "success");
     }
   };
 
@@ -256,8 +285,8 @@ export function AppToolbar({
       {/* ═══ Spacer ═══ */}
       <div style={{ flex: 1 }} />
 
-      {/* ═══ Calculate — Hero Button (Admin only) ═══ */}
-      {isAdmin && (
+      {/* ═══ Route Planning — Hero Button (Admin + NGO) ═══ */}
+      {(isAdmin || isNGO) && (
         <button
           onClick={handleCalculate}
           style={{
@@ -267,11 +296,14 @@ export function AppToolbar({
             padding: "8px 20px",
             borderRadius: 10,
             marginInlineEnd: 12,
-            background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
+            background: isNGO
+              ? `linear-gradient(135deg, ${currentInst?.color || '#3b82f6'} 0%, ${currentInst?.color || '#2563eb'}DD 100%)`
+              : "linear-gradient(135deg, #059669 0%, #047857 100%)",
             color: "#fff",
             border: "1px solid rgba(255,255,255,0.1)",
-            boxShadow:
-              "0 0 16px rgba(5,150,105,0.35), inset 0 1px 0 rgba(255,255,255,0.1)",
+            boxShadow: isNGO
+              ? `0 0 16px ${currentInst?.color || '#3b82f6'}55, inset 0 1px 0 rgba(255,255,255,0.1)`
+              : "0 0 16px rgba(5,150,105,0.35), inset 0 1px 0 rgba(255,255,255,0.1)",
             fontSize: "0.82rem",
             fontWeight: 700,
             fontFamily: "inherit",
@@ -283,16 +315,18 @@ export function AppToolbar({
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = "translateY(-1px)";
-            e.currentTarget.style.boxShadow =
-              "0 4px 20px rgba(5,150,105,0.5), inset 0 1px 0 rgba(255,255,255,0.15)";
+            e.currentTarget.style.boxShadow = isNGO
+              ? `0 4px 20px ${currentInst?.color || '#3b82f6'}70, inset 0 1px 0 rgba(255,255,255,0.15)`
+              : "0 4px 20px rgba(5,150,105,0.5), inset 0 1px 0 rgba(255,255,255,0.15)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = "";
-            e.currentTarget.style.boxShadow =
-              "0 0 16px rgba(5,150,105,0.35), inset 0 1px 0 rgba(255,255,255,0.1)";
+            e.currentTarget.style.boxShadow = isNGO
+              ? `0 0 16px ${currentInst?.color || '#3b82f6'}55, inset 0 1px 0 rgba(255,255,255,0.1)`
+              : "0 0 16px rgba(5,150,105,0.35), inset 0 1px 0 rgba(255,255,255,0.1)";
           }}
         >
-          <Calculator size={15} /> حساب التوزيع
+          <Route size={15} /> تخطيط المسارات
         </button>
       )}
 

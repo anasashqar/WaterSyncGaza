@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useDataStore } from '@/stores/useDataStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useUIStore } from '@/stores/useUIStore'
-import { Droplets, Truck, MapPin, ChevronLeft, ChevronRight, Check, Building2, ClipboardList } from 'lucide-react'
+import { Droplets, Truck, MapPin, ChevronLeft, ChevronRight, Check, Building2, ClipboardList, LogOut, SkipForward } from 'lucide-react'
 
 interface Props {
   onComplete: () => void
@@ -14,6 +14,7 @@ export function NGOSetupWizard({ onComplete }: Props) {
   const addNotification = useUIStore((s) => s.addNotification)
   const currentNGO = useAuthStore((s) => s.getCurrentNGO())
   const institutionId = useAuthStore((s) => s.institutionId)
+  const logout = useAuthStore((s) => s.logout)
 
   const [step, setStep] = useState(1)
   const [selectedStations, setSelectedStations] = useState<string[]>([])
@@ -64,9 +65,39 @@ export function NGOSetupWizard({ onComplete }: Props) {
         {/* Header (Formal) */}
         <div style={{
           background: `linear-gradient(135deg, ${ngoColor}22, ${ngoColor}05)`,
-          padding: '32px 36px 24px',
+          padding: '24px 36px 24px',
           borderBottom: `1px solid ${ngoColor}30`,
         }}>
+          {/* Top row: Skip + Logout */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <button
+              onClick={() => onComplete()}
+              style={{
+                background: 'transparent', border: '1px solid var(--glass-border)',
+                color: 'var(--text-muted)', padding: '6px 14px', borderRadius: 8,
+                fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-dark)'; e.currentTarget.style.color = 'var(--text)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)' }}
+            >
+              <SkipForward size={14} /> تخطي الإعداد
+            </button>
+            <button
+              onClick={() => logout()}
+              style={{
+                background: 'transparent', border: '1px solid rgba(239,68,68,0.3)',
+                color: '#ef4444', padding: '6px 14px', borderRadius: 8,
+                fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <LogOut size={14} /> تسجيل خروج
+            </button>
+          </div>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <div style={{
               width: 60, height: 60, borderRadius: 16,

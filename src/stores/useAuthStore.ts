@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
 // ============================================
 // Role & Organization Types
@@ -25,197 +26,192 @@ export interface UserPreferences {
 }
 
 // ============================================
-// Demo Data
+// User & Auth State Models
 // ============================================
 
 export interface User {
   id: string
   username: string
-  password: string // Only for demo purposes
+  password?: string // Simulated password (in real app, use hash)
   name: string
   role: UserRole
   institutionId: string | null
 }
 
-export const DEMO_USERS: User[] = [
-  {
-    id: 'admin-1',
-    username: 'admin',
-    password: 'password',
-    name: 'مدير النظام الأساسي',
-    role: 'admin',
-    institutionId: null,
-  },
-  {
-    id: 'unrwa-coord',
-    username: 'unrwa',
-    password: 'password',
-    name: 'منسق الأونروا',
-    role: 'ngo',
-    institutionId: 'ngo-unrwa',
-  },
-  {
-    id: 'islamic-coord',
-    username: 'islamic',
-    password: 'password',
-    name: 'منسق الإغاثة',
-    role: 'ngo',
-    institutionId: 'ngo-islamic-relief',
-  },
-  {
-    id: 'driver-1',
-    username: 'driver1',
-    password: 'password',
-    name: 'سائق (الأونروا)',
-    role: 'driver',
-    institutionId: 'ngo-unrwa',
-  },
-  {
-    id: 'driver-2',
-    username: 'driver2',
-    password: 'password',
-    name: 'سائق (الإغاثة)',
-    role: 'driver',
-    institutionId: 'ngo-islamic-relief',
-  },
-]
-
-export const DEMO_NGOS: NGOOrganization[] = [
-  {
-    id: 'ngo-unrwa',
-    name: 'UNRWA',
-    nameAr: 'الأونروا',
-    color: '#0072BC',
-    logo: '🇺🇳',
-  },
-  {
-    id: 'ngo-islamic-relief',
-    name: 'Islamic Relief',
-    nameAr: 'الإغاثة الإسلامية',
-    color: '#2E7D32',
-    logo: '🌙',
-  },
-]
+export const DEMO_NGOS: NGOOrganization[] = []
 
 // ============================================
 // Auth Store
 // ============================================
 
 interface AuthState {
-  /** Current active user */
+  // DB simulated tables for the Frontend (persisted)
+  registeredUsers: User[]
+  registeredNGOs: NGOOrganization[]
+
+  // Current session
   user: User | null
-  /** Is user authenticated? */
   isAuthenticated: boolean
   
-  /** Current active role */
+  // Computed role state
   role: UserRole
-  /** Whether the user has selected a role on first launch (legacy - deprecated) */
-  roleSelected: boolean
-  /** Active institution ID (null for admin who sees everything) */
   institutionId: string | null
-  /** Whether the NGO has completed the setup wizard */
   ngoSetupComplete: boolean
-  /** Notification preferences */
   preferences: UserPreferences
 
   // Actions
-  /** Login with username and password */
   login: (username: string, password?: string) => boolean
-  /** Logout current user */
   logout: () => void
+  
+  /** Register a new NGO User (Admin/Coordinator) */
+  registerNGOUser: (ngoName: string, name: string, username: string, password?: string) => User | null
+  
+  /** Register a new Driver linked to an existing NGO */
+  registerDriver: (ngoId: string, name: string, username: string, password?: string) => User | null
 
-  /** Switch role + auto-bind institution context (legacy - deprecated) */
-  switchRole: (role: UserRole, institutionId?: string | null) => void
-  /** Legacy: simple role setter (backwards compat) */
-  setRole: (role: UserRole) => void
-  /** Mark NGO setup as complete */
+  // Setup workflows
   completeNGOSetup: () => void
-  /** Update notification preferences */
   updatePreferences: (updates: Partial<UserPreferences>) => void
 
   // Getters
-  /** Get the current NGO organization object (null if admin) */
   getCurrentNGO: () => NGOOrganization | null
-  /** Check if current user can see all data (admin only) */
   isGodView: () => boolean
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
-  user: null,
-  isAuthenticated: false,
-  role: 'admin',               // Default: overridden by login
-  roleSelected: false,         // Legacy
-  institutionId: null,         // Admin sees everything
-  ngoSetupComplete: false,     // NGO wizard not done yet
-  preferences: {
-    muteAll: false,
-    receiveInApp: true,
-    receivePush: true,
-    receiveEmail: false,
-  },
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set, get) => ({
+      // DB Tables
+      registeredUsers: [
+        {
+          id: 'admin-1',
+          username: 'WaterSync',
+          password: 'WS@2026',
+          name: 'مدير النظام الأساسي',
+          role: 'admin',
+          institutionId: null,
+        }
+      ],
+      registeredNGOs: [], // Clean start — no demo NGOs
 
-  login: (username, password) => {
-    // Basic hardcoded logic for demo purposes
-    const userToLogin = DEMO_USERS.find(
-      (u) => u.username === username && u.password === (password || 'password')
-    )
-
-    if (userToLogin) {
-      set({
-        user: userToLogin,
-        isAuthenticated: true,
-        role: userToLogin.role,
-        institutionId: userToLogin.institutionId,
-        roleSelected: true, // Compatibility with legacy code
-        ngoSetupComplete: false,
-      })
-      return true
-    }
-    return false
-  },
-
-  logout: () => {
-    set({
+      // Session
       user: null,
       isAuthenticated: false,
-      roleSelected: false,
-      institutionId: null,
-      role: 'admin', // reset
-    })
-  },
+      role: 'admin',               
+      institutionId: null,         
+      ngoSetupComplete: false,     
+      preferences: {
+        muteAll: false,
+        receiveInApp: true,
+        receivePush: true,
+        receiveEmail: false,
+      },
 
-  switchRole: (role, institutionId) => {
-    if (role === 'admin') {
-      set({ role, roleSelected: true, institutionId: null, ngoSetupComplete: false })
-    } else if (role === 'ngo') {
-      // Default to first NGO if none specified
-      set({ role, roleSelected: true, institutionId: institutionId ?? DEMO_NGOS[0].id, ngoSetupComplete: false })
-    } else if (role === 'driver') {
-      // Driver always belongs to an NGO
-      set({ role, roleSelected: true, institutionId: institutionId ?? get().institutionId ?? DEMO_NGOS[0].id, ngoSetupComplete: false })
+      login: (username, password) => {
+        const { registeredUsers } = get()
+        const userToLogin = registeredUsers.find(
+          (u) => u.username === username && u.password === (password || 'password')
+        )
+
+        if (userToLogin) {
+          set({
+            user: userToLogin,
+            isAuthenticated: true,
+            role: userToLogin.role,
+            institutionId: userToLogin.institutionId,
+            ngoSetupComplete: false,
+          })
+          return true
+        }
+        return false
+      },
+
+      logout: () => {
+        set({
+          user: null,
+          isAuthenticated: false,
+          institutionId: null,
+          role: 'admin', 
+        })
+      },
+
+      registerNGOUser: (ngoNameAr, name, username, password) => {
+        const { registeredUsers, registeredNGOs } = get()
+        
+        // Prevent duplicate usernames
+        if (registeredUsers.some(u => u.username === username)) return null
+
+        // Create new simulated NGO Org
+        const newNgoId = `ngo-${Date.now()}`
+        const newNGO: NGOOrganization = {
+          id: newNgoId,
+          name: ngoNameAr, // simplified string use
+          nameAr: ngoNameAr,
+          color: `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`,
+          logo: '🏢'
+        }
+
+        const newUser: User = {
+          id: `usr-${Date.now()}`,
+          username,
+          password: password || 'password',
+          name,
+          role: 'ngo',
+          institutionId: newNgoId
+        }
+
+        set({
+           registeredNGOs: [...registeredNGOs, newNGO],
+           registeredUsers: [...registeredUsers, newUser]
+        })
+        return newUser
+      },
+
+      registerDriver: (ngoId, name, username, password) => {
+        const { registeredUsers } = get()
+        if (registeredUsers.some(u => u.username === username)) return null
+
+        const newUser: User = {
+          id: `driver-${Date.now()}`,
+          username,
+          password: password || 'password',
+          name,
+          role: 'driver',
+          institutionId: ngoId
+        }
+
+        set({ registeredUsers: [...registeredUsers, newUser] })
+        return newUser
+      },
+
+      updatePreferences: (updates) =>
+        set((state) => ({ preferences: { ...state.preferences, ...updates } })),
+
+      completeNGOSetup: () => set({ ngoSetupComplete: true }),
+
+      getCurrentNGO: () => {
+        const { institutionId, registeredNGOs } = get()
+        if (!institutionId) return null
+        return registeredNGOs.find((n) => n.id === institutionId) ?? null
+      },
+
+      isGodView: () => get().role === 'admin',
+    }),
+    {
+      name: 'watersync-auth-storage',
+      // Ensure we don't persist 'isAuthenticated' as true if we want them to login again on deep reloads,
+      // but for "Offline" PWA apps, staying logged in is usually preferred.
+      partialize: (state) => ({ 
+         registeredUsers: state.registeredUsers,
+         registeredNGOs: state.registeredNGOs,
+         user: state.user,
+         isAuthenticated: state.isAuthenticated,
+         role: state.role,
+         institutionId: state.institutionId,
+         ngoSetupComplete: state.ngoSetupComplete
+      }),
+      version: 2, // Increment to force reset old cached data
     }
-  },
+  )
+)
 
-  // Backwards compatibility — old code calls setRole('coordinator') etc.
-  setRole: (role) => {
-    const mapped: UserRole =
-      role === ('coordinator' as string) ? 'admin' :
-      role === ('org' as string) ? 'ngo' :
-      role === ('manager' as string) ? 'admin' :
-      role
-    get().switchRole(mapped)
-  },
-
-  updatePreferences: (updates) =>
-    set((state) => ({ preferences: { ...state.preferences, ...updates } })),
-
-  completeNGOSetup: () => set({ ngoSetupComplete: true }),
-
-  getCurrentNGO: () => {
-    const { institutionId } = get()
-    if (!institutionId) return null
-    return DEMO_NGOS.find((n) => n.id === institutionId) ?? null
-  },
-
-  isGodView: () => get().role === 'admin',
-}))
