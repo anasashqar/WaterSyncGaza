@@ -61,12 +61,24 @@ export function MapClickHandler() {
       if (mode === 'zone_rect' && drawStart && drawCurrent) {
         if (drawStart.distanceTo(e.latlng) > 10) { // Min size to avoid accidental clicks
           const bounds = L.latLngBounds(drawStart, e.latlng)
+          const center = bounds.getCenter()
+
+          // التحقق من وجود الموقع داخل حي
+          if (!findNeighborhood(center.lat, center.lng)) {
+            addNotification('لا يمكن إضافة منطقة استبعاد خارج حدود الأحياء المعتمدة', 'warning')
+            setDrawStart(null)
+            setDrawCurrent(null)
+            const editorMode = useMapStore.getState().editorMode
+            if (!editorMode) setMode(null)
+            return
+          }
+
           const zone = {
             id: `zone_${Date.now()}`,
             name: `مساحة خطرة ${exclusionZones.length + 1}`,
             type: 'danger',
-            lat: bounds.getCenter().lat,
-            lng: bounds.getCenter().lng,
+            lat: center.lat,
+            lng: center.lng,
             active: true,
             shape: 'rectangle' as const,
             bounds: [
@@ -89,8 +101,16 @@ export function MapClickHandler() {
       if (!mode || mode === 'zone_rect') return
       
       const { lat, lng } = e.latlng
+      const neigh = findNeighborhood(lat, lng)
+
+      if (!neigh) {
+        addNotification('الموقع المختار يقع خارج حدود العمل (خارج الأحياء والخدمة)', 'warning')
+        const editorMode = useMapStore.getState().editorMode
+        if (!editorMode) setMode(null)
+        return
+      }
+
       const gov = findGovernorate(lat, lng) || 'غير محدد'
-      const neigh = findNeighborhood(lat, lng) || 'غير محدد'
 
       if (mode === 'station') {
         const station = {

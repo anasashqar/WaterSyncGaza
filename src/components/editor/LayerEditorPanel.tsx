@@ -130,16 +130,43 @@ export function LayerEditorPanel({ onClose, initialTab = 'tools' }: { onClose: (
     reader.onload = (ev) => {
       try {
         const data = JSON.parse(ev.target?.result as string)
+        const findNeigh = useMapStore.getState().findNeighborhood
         let n = 0
-        if (data.stations?.length) { setStations(data.stations); n += data.stations.length }
-        if (data.points?.length) { setPoints(data.points); n += data.points.length }
-        if (data.exclusionZones?.length) { setExclusionZones(data.exclusionZones as ExclusionZone[]); n += data.exclusionZones.length }
-        if (Array.isArray(data) && data[0]?.lat) {
-          if (data[0].dailyCapacity !== undefined) { setStations(data); n += data.length }
-          else { setPoints(data); n += data.length }
+        let skipped = 0
+
+        const filterItems = (list: any[]) => {
+          if (!findNeigh) return list
+          return list.filter(item => {
+            if (findNeigh(item.lat || 0, item.lng || 0)) return true
+            skipped++
+            return false
+          })
         }
-        addNotification(`تم استيراد ${n} عنصر`, 'success')
-      } catch { addNotification('خطأ في قراءة الملف', 'error') }
+
+        if (data.stations?.length) { 
+          const valid = filterItems(data.stations)
+          setStations(valid); n += valid.length 
+        }
+        if (data.points?.length) { 
+          const valid = filterItems(data.points)
+          setPoints(valid); n += valid.length 
+        }
+        if (data.exclusionZones?.length) { 
+          const valid = filterItems(data.exclusionZones as ExclusionZone[])
+          setExclusionZones(valid); n += valid.length 
+        }
+        if (Array.isArray(data) && data[0]?.lat) {
+          const valid = filterItems(data)
+          if (data[0].dailyCapacity !== undefined) { setStations(valid); n += valid.length }
+          else { setPoints(valid); n += valid.length }
+        }
+
+        if (skipped > 0) {
+          addNotification(`تم استيراد ${n} عنصر، وتجاهل ${skipped} عناصر خارج حدود الأحياء`, 'warning')
+        } else {
+          addNotification(`تم استيراد ${n} عنصر بنجاح`, 'success')
+        }
+      } catch { addNotification('خطأ في قراءة ملف JSON', 'error') }
     }
     reader.readAsText(file); e.target.value = ''
   }, [setStations, setPoints, setExclusionZones, addNotification])
@@ -173,25 +200,38 @@ export function LayerEditorPanel({ onClose, initialTab = 'tools' }: { onClose: (
   }
 
   const addOsmAs = (r: OsmResult, as: 'station' | 'point') => {
+    const lat = +r.lat
+    const lng = +r.lon
+    const findNeigh = useMapStore.getState().findNeighborhood
+    const findGov = useMapStore.getState().findGovernorate
+    
+    const neigh = findNeigh ? findNeigh(lat, lng) : null
+    if (!neigh) {
+      addNotification('الموقع المختار في OSM يقع خارج حدود العمل (الأحياء المعتمدة)', 'warning')
+      return
+    }
+
+    const gov = findGov ? (findGov(lat, lng) || 'غير محدد') : 'غير محدد'
     const name = r.display_name.split(',')[0]
+
     if (as === 'station') {
       addStation({
-        id: `stn_osm_${Date.now()}`, name, lat: +r.lat, lng: +r.lon,
-        governorate: '', dailyCapacity: 0, usedCapacity: 0, remainingCapacity: 0,
+        id: `stn_osm_${Date.now()}`, name, lat, lng,
+        governorate: gov, neighborhood: neigh, dailyCapacity: 0, usedCapacity: 0, remainingCapacity: 0,
         institutions: [], trucks: 0,
       })
     } else {
       addPoint({
-        id: `pt_osm_${Date.now()}`, name, type: 'residential', lat: +r.lat, lng: +r.lon,
-        governorate: '', neighborhood: '', population: 0, demand: TRUCK_CAPACITY,
+        id: `pt_osm_${Date.now()}`, name, type: 'residential', lat, lng,
+        governorate: gov, neighborhood: neigh, population: 0, demand: TRUCK_CAPACITY,
         capacity: TRUCK_CAPACITY, currentFill: 0, remainingCapacity: TRUCK_CAPACITY,
         totalReceived: 0, status: 'critical', lastSupply: null, stationId: null,
         visitedByTrucks: [], missedCount: 0,
         reservedBy: null, reservedAt: null, reservedUntil: null, reservationStatus: 'available',
       })
     }
-    addNotification(`تم إضافة "${name}"`, 'success')
-    flyTo?.(+r.lat, +r.lon)
+    addNotification(`تم إضافة "${name}" في ${neigh}`, 'success')
+    flyTo?.(lat, lng)
   }
 
   // ═══ File Drop ═══
@@ -202,12 +242,30 @@ export function LayerEditorPanel({ onClose, initialTab = 'tools' }: { onClose: (
     const reader = new FileReader()
     reader.onload = (ev) => {
       try {
-        const d = JSON.parse(ev.target?.result as string); let c = 0
-        if (d.stations) { setStations(d.stations); c += d.stations.length }
-        if (d.points) { setPoints(d.points); c += d.points.length }
-        if (d.exclusionZones) { setExclusionZones(d.exclusionZones as ExclusionZone[]); c += d.exclusionZones.length }
-        addNotification(`تم استيراد ${c} عنصر`, 'success')
-      } catch { addNotification('خطأ في الملف', 'error') }
+        const d = JSON.parse(ev.target?.result as string)
+        const findNeigh = useMapStore.getState().findNeighborhood
+        let c = 0
+        let skipped = 0
+
+        const filterItems = (list: any[]) => {
+          if (!findNeigh) return list
+          return list.filter(item => {
+            if (findNeigh(item.lat || 1, item.lng || 1)) return true // Fallback for zones that might have lat/lng but 0
+            skipped++
+            return false
+          })
+        }
+
+        if (d.stations) { const v = filterItems(d.stations); setStations(v); c += v.length }
+        if (d.points) { const v = filterItems(d.points); setPoints(v); c += v.length }
+        if (d.exclusionZones) { const v = filterItems(d.exclusionZones as ExclusionZone[]); setExclusionZones(v); c += v.length }
+        
+        if (skipped > 0) {
+          addNotification(`تم استيراد ${c} عنصر، وتجاهل ${skipped} عناصر خارج حدود الأحياء`, 'warning')
+        } else {
+          addNotification(`تم استيراد ${c} عنصر`, 'success')
+        }
+      } catch { addNotification('خطأ في تنسيق الملف المسحب', 'error') }
     }
     reader.readAsText(file)
   }

@@ -8,6 +8,7 @@ import { useMapStore } from '@/stores/useMapStore'
 import { createIcon } from './MapIcons'
 import { COLORS } from '@/lib/constants/colors'
 import { useCallback, useMemo } from 'react'
+import { useUIStore } from '@/stores/useUIStore'
 import type L from 'leaflet'
 
 export function StationsLayer() {
@@ -17,12 +18,25 @@ export function StationsLayer() {
   const editorMode = useMapStore((s) => s.editorMode)
   const findGovernorate = useMapStore((s) => s.findGovernorate)
   const findNeighborhood = useMapStore((s) => s.findNeighborhood)
+  const addNotification = useUIStore((s) => s.addNotification)
 
   const handleDragEnd = useCallback((stationId: string, e: L.DragEndEvent) => {
     const marker = e.target
     const pos = marker.getLatLng()
+    
+    // التحقق من الموقع الجديد
+    const neigh = findNeighborhood(pos.lat, pos.lng)
+    
+    if (!neigh) {
+      addNotification('لا يمكن نقل المحطة خارج حدود الأحياء المعتمدة', 'warning')
+      const original = stations.find(s => s.id === stationId)
+      if (original) {
+        marker.setLatLng([original.lat, original.lng])
+      }
+      return
+    }
+
     const gov = findGovernorate(pos.lat, pos.lng) || ''
-    const neigh = findNeighborhood(pos.lat, pos.lng) || ''
 
     updateStation(stationId, {
       lat: pos.lat,
@@ -30,7 +44,7 @@ export function StationsLayer() {
       governorate: gov,
       neighborhood: neigh,
     })
-  }, [updateStation, findGovernorate, findNeighborhood])
+  }, [updateStation, findGovernorate, findNeighborhood, stations])
 
   const icon = useMemo(() => createIcon('station', COLORS.station, 24), [])
 

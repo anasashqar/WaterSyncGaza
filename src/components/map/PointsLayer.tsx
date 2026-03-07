@@ -92,8 +92,23 @@ export function PointsLayer() {
   const handleDragEnd = useCallback((pointId: string, e: L.DragEndEvent) => {
     const marker = e.target
     const pos = marker.getLatLng()
+    
+    // التحقق من الموقع الجديد
+    const neigh = findNeighborhood(pos.lat, pos.lng)
+    
+    if (!neigh) {
+      addNotification('لا يمكن نقل النقطة خارج حدود الأحياء المعتمدة', 'warning')
+      // إعادة الرسم سيؤدي لعودة العلامة لموقعها المخزن في الـ store
+      // سنقوم بتحديث وهمي بسيط أو مجرد الاعتماد على أن الـ store لم يتغير
+      // للحصول على رد فعل فوري، يفضل إعادة تعيين الموقع في الماركر يدوياً
+      const original = points.find(p => p.id === pointId)
+      if (original) {
+        marker.setLatLng([original.lat, original.lng])
+      }
+      return
+    }
+
     const gov = findGovernorate(pos.lat, pos.lng) || ''
-    const neigh = findNeighborhood(pos.lat, pos.lng) || ''
 
     updatePoint(pointId, {
       lat: pos.lat,
@@ -101,7 +116,7 @@ export function PointsLayer() {
       governorate: gov,
       neighborhood: neigh,
     })
-  }, [updatePoint, findGovernorate, findNeighborhood])
+  }, [updatePoint, findGovernorate, findNeighborhood, points, addNotification])
 
   return (
     <>

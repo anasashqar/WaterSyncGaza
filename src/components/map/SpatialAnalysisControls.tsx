@@ -148,6 +148,12 @@ export function SpatialAnalysisControls() {
           }
         }
 
+        // التحقق من وجود الموقع داخل حي (منع المقترحات خارج الحدود)
+        const findNeigh = useMapStore.getState().findNeighborhood;
+        if (findNeigh && !findNeigh(finalLat, finalLng)) {
+          return; // Skip this suggestion if outside neighborhoods
+        }
+
         // Calculate final coverage using all valid points
         const nearbyCount = points.filter(p => 
           haversine(finalLat, finalLng, p.lat, p.lng) <= 3.0 && 
@@ -180,6 +186,12 @@ export function SpatialAnalysisControls() {
   }
 
   const handleAcceptAi = (sug: {lat: number, lng: number}) => {
+    const findNeigh = useMapStore.getState().findNeighborhood
+    const findGov = useMapStore.getState().findGovernorate
+    
+    const neigh = findNeigh ? (findNeigh(sug.lat, sug.lng) || 'غير محدد') : 'غير محدد'
+    const gov = findGov ? (findGov(sug.lat, sug.lng) || 'غير محدد') : 'غير محدد'
+
     addStation({
       id: `st_ai_${Date.now()}`,
       name: `محطة مقترحة (AI)`,
@@ -189,10 +201,11 @@ export function SpatialAnalysisControls() {
       dailyCapacity: 50000,
       usedCapacity: 0,
       remainingCapacity: 50000,
-      governorate: '',
+      governorate: gov,
+      neighborhood: neigh,
       trucks: 0
     })
-    addNotification('تم اعتماد وإنشاء المحطة المقترحة', 'success')
+    addNotification('تم اعتماد وإنشاء المحطة المقترحة في ' + neigh, 'success')
     setShowAi(false)
     setAiSuggestions([])
   }
