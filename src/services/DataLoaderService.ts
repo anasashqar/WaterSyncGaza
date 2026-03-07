@@ -1,6 +1,5 @@
 import { useDataStore } from '@/stores/useDataStore'
 import { useMapStore } from '@/stores/useMapStore'
-import type { Station, Point, ExclusionZone } from '@/types'
 
 /**
  * Service to load initial data into the application state.
@@ -9,17 +8,9 @@ export class DataLoaderService {
   /**
    * Loads the main JSON file into the data store.
    */
-  static async loadMainData(url: string = '/data/watersync_gaza_full.json'): Promise<void> {
+  static async loadMainData(): Promise<void> {
     try {
-      const response = await fetch(url)
-      
-      if (!response.ok) {
-        throw new Error(`Failed to load data: ${response.status} ${response.statusText}`)
-      }
-
-      const data = await response.json()
-      
-      const { setStations, setPoints, setExclusionZones, setInstitutions, points, stations } = useDataStore.getState()
+      const { points, stations } = useDataStore.getState()
 
       // If data is already populated (e.g. via cross-tab sync), do NOT overwrite
       if (points.length > 0 || stations.length > 0) {
@@ -28,81 +19,11 @@ export class DataLoaderService {
         return
       }
 
-      if (data.stations && Array.isArray(data.stations)) {
-        // Normalize station data — fill in missing numeric fields
-        const normalizedStations = data.stations.map((s: any) => ({
-          ...s,
-          usedCapacity: s.usedCapacity ?? 0,
-          remainingCapacity: s.remainingCapacity ?? (s.dailyCapacity ?? 0),
-          dailyCapacity: s.dailyCapacity ?? 0,
-          trucks: s.trucks ?? 0,
-          institutions: s.institutions ?? [],
-        })) as Station[]
+      // The user wants to start the application with an empty map
+      // (no default stations, points, or exclusion zones).
+      console.log('[OK] Starting empty without default mock data')
 
-        setStations(normalizedStations)
-        
-        // Extract and set institutions from stations
-        const allInstitutions = normalizedStations.flatMap((station: Station) => station.institutions || [])
-        
-        const orgMap = new Map<string, any>()
-        allInstitutions.forEach((inst: any) => {
-          const key = inst.name
-          if (!orgMap.has(key)) {
-            orgMap.set(key, { ...inst, stationIds: inst.stationId ? [inst.stationId] : [] })
-          } else {
-            const existing = orgMap.get(key)!
-            if (inst.stationId && !existing.stationIds.includes(inst.stationId)) {
-              existing.stationIds.push(inst.stationId)
-            }
-            // Accumulated trucks across all stations for this NGO
-            existing.trucks += (inst.trucks || 0)
-          }
-        })
-
-        setInstitutions(Array.from(orgMap.values()) as typeof allInstitutions)
-        
-        // Ensure station local institutions also match the new type (convert stationId to stationIds)
-        normalizedStations.forEach(st => {
-          if (st.institutions) {
-             st.institutions.forEach((localInst: any) => {
-                localInst.stationIds = localInst.stationId ? [localInst.stationId] : [st.id]
-             })
-          }
-        })
-      }
-
-      if (data.points && Array.isArray(data.points)) {
-        // Normalize point data
-        const normalizedPoints = data.points.map((p: any) => ({
-          ...p,
-          demand: p.demand ?? 0,
-          capacity: p.capacity ?? p.demand ?? 0,
-          currentFill: p.currentFill ?? 0,
-          remainingCapacity: p.remainingCapacity ?? (p.capacity ?? p.demand ?? 0),
-          totalReceived: p.totalReceived ?? 0,
-          population: p.population ?? 0,
-          missedCount: p.missedCount ?? 0,
-          visitedByTrucks: p.visitedByTrucks ?? [],
-          status: p.status ?? 'critical',
-          stationId: p.stationId ?? null,
-          lastSupply: p.lastSupply ?? null,
-          // Reservation defaults (Plan 3 — Phase 1)
-          reservedBy: p.reservedBy ?? null,
-          reservedAt: p.reservedAt ?? null,
-          reservedUntil: p.reservedUntil ?? null,
-          reservationStatus: p.reservationStatus ?? 'available',
-        })) as Point[]
-
-        setPoints(normalizedPoints)
-      }
-
-      if (data.exclusionZones && Array.isArray(data.exclusionZones)) {
-        setExclusionZones(data.exclusionZones as ExclusionZone[])
-      }
-
-      console.log('[OK] Main data loaded successfully')
-
-      // Load GeoJSON data simultaneously
+      // Load GeoJSON data (Governorates, Neighborhoods, Streets, Buffer Zones)
       DataLoaderService.loadGeoData()
       
     } catch (error) {
