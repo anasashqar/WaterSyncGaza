@@ -131,3 +131,42 @@ export function createNeighborhoodLookup(features: GeoJSONFeature[]) {
     return findPolygonContaining({ fileType: 'neighborhoods', features, lat, lng })
   }
 }
+
+// ============================================
+// Nearest Available Point (Plan 3 — Phase 2)
+// ============================================
+
+import type { Point } from '@/types'
+
+/**
+ * Find the nearest available (unreserved) point to a target point.
+ * Uses haversine distance for sorting.
+ * Returns null if no available points exist.
+ */
+export function findNearestAvailablePoint(
+  targetLat: number,
+  targetLng: number,
+  allPoints: Point[],
+  excludePointId?: string
+): Point | null {
+  const available = allPoints.filter(
+    (p) =>
+      p.id !== excludePointId &&
+      (!p.reservedBy || p.reservationStatus === 'available')
+  )
+
+  if (available.length === 0) return null
+
+  let nearest: Point | null = null
+  let minDist = Infinity
+
+  for (const p of available) {
+    const dist = haversine(targetLat, targetLng, p.lat, p.lng)
+    if (dist < minDist) {
+      minDist = dist
+      nearest = p
+    }
+  }
+
+  return nearest
+}

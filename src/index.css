@@ -390,3 +390,23 @@ html.theme-transitioning * {
   opacity: 0.3 !important;
   stroke-dasharray: 4, 12 !important;
 }
+
+/* ============================================
+   10. Reservation Rings (Plan 3 — Phase 2)
+   ============================================ */
+@keyframes reservationPulse {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+.reservation-ring {
+  animation: reservationPulse 2.5s infinite ease-in-out;
+  pointer-events: none;
+}

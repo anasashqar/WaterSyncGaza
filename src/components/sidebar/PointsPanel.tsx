@@ -8,7 +8,7 @@ import { useDataStore } from '@/stores/useDataStore'
 import { useMapStore } from '@/stores/useMapStore'
 import { getStatusColor } from '@/lib/utils'
 import { TYPE_LABELS } from '@/lib/constants/colors'
-import { ChevronDown, ChevronRight, Edit2, MapPin, Navigation, Search, Filter, Droplet } from 'lucide-react'
+import { ChevronDown, ChevronRight, MapPin, Navigation, Search, Filter, Droplet } from 'lucide-react'
 
 // Simple functional stat component
 function PtsStat({ value, label, color }: { value: number; label: string; color: string }) {
@@ -46,7 +46,7 @@ function SectionHeader({ title, icon: Icon, action }: { title: string, icon: any
   )
 }
 
-export function PointsPanel({ onOpenEditor }: { onOpenEditor?: (tab?: 'stations' | 'points') => void } = {}) {
+export function PointsPanel() {
   const points = useDataStore((s) => s.points)
   const map = useMapStore((s) => s.map)
 
@@ -96,24 +96,7 @@ export function PointsPanel({ onOpenEditor }: { onOpenEditor?: (tab?: 'stations'
 
       <SectionHeader 
         title="نقاط التوزيع (الطلب)" 
-        icon={MapPin} 
-        action={
-           <button 
-            onClick={() => onOpenEditor?.('points')}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              background: 'var(--primary, #2563eb)', color: '#fff',
-              border: 'none', borderRadius: 4, padding: '4px 8px',
-              fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
-            onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-            title="فتح محرر الطبقة"
-          >
-            <Edit2 size={12} /> محرر الطبقة
-          </button>
-        }
+        icon={MapPin}
       />
 
       {/* Search and Filters Strip */}
@@ -273,23 +256,6 @@ export function PointsPanel({ onOpenEditor }: { onOpenEditor?: (tab?: 'stations'
                       
                       <div style={{ color: 'var(--text-muted, #64748b)' }}>حالة الطلب</div>
                       <div style={{ fontWeight: 600, color: sc }}>{getStatusArabic(point.status)}</div>
-                    </div>
-
-                    {/* فتح المحرر للتعديل — لا يوجد تعديل/حذف مباشر هنا */}
-                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-start' }}>
-                      <button
-                        onClick={() => onOpenEditor?.('points')}
-                        style={{ 
-                           padding: '5px 14px', background: 'var(--bg-elevated, #fff)', border: '1px solid var(--primary, #2563eb)', 
-                           borderRadius: 6, fontSize: '0.7rem', cursor: 'pointer', color: 'var(--primary, #2563eb)', 
-                           fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
-                           transition: 'all 0.2s',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--primary, #2563eb)'; e.currentTarget.style.color = '#fff' }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-elevated, #fff)'; e.currentTarget.style.color = 'var(--primary, #2563eb)' }}
-                      >
-                        <Edit2 size={12} /> تعديل في المحرر
-                      </button>
                     </div>
                   </div>
                 )}

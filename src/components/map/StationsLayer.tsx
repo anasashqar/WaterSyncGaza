@@ -1,16 +1,38 @@
 /**
  * WaterSync — Station Markers Layer
- * طبقة علامات المحطات
+ * طبقة علامات المحطات — مع دعم السحب في وضع المحرر
  */
 import { Marker, Popup, Tooltip } from 'react-leaflet'
 import { useDataStore } from '@/stores/useDataStore'
 import { useMapStore } from '@/stores/useMapStore'
 import { createIcon } from './MapIcons'
 import { COLORS } from '@/lib/constants/colors'
+import { useCallback, useMemo } from 'react'
+import type L from 'leaflet'
 
 export function StationsLayer() {
   const stations = useDataStore((s) => s.stations)
+  const updateStation = useDataStore((s) => s.updateStation)
   const visible = useMapStore((s) => s.layerVisibility.stations)
+  const editorMode = useMapStore((s) => s.editorMode)
+  const findGovernorate = useMapStore((s) => s.findGovernorate)
+  const findNeighborhood = useMapStore((s) => s.findNeighborhood)
+
+  const handleDragEnd = useCallback((stationId: string, e: L.DragEndEvent) => {
+    const marker = e.target
+    const pos = marker.getLatLng()
+    const gov = findGovernorate(pos.lat, pos.lng) || ''
+    const neigh = findNeighborhood(pos.lat, pos.lng) || ''
+
+    updateStation(stationId, {
+      lat: pos.lat,
+      lng: pos.lng,
+      governorate: gov,
+      neighborhood: neigh,
+    })
+  }, [updateStation, findGovernorate, findNeighborhood])
+
+  const icon = useMemo(() => createIcon('station', COLORS.station, 24), [])
 
   if (!visible) return null
 
@@ -20,7 +42,11 @@ export function StationsLayer() {
         <Marker
           key={station.id}
           position={[station.lat, station.lng]}
-          icon={createIcon('station', COLORS.station, 24)}
+          icon={icon}
+          draggable={editorMode}
+          eventHandlers={editorMode ? {
+            dragend: (e) => handleDragEnd(station.id, e),
+          } : undefined}
         >
           <Tooltip direction="top" offset={[0, -12]}>
             {station.name}

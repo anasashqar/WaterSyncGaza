@@ -7,6 +7,8 @@ import { useUIStore } from '@/stores/useUIStore'
 import { useMapStore } from '@/stores/useMapStore'
 import { createIcon } from './MapIcons'
 import { GAZA_BOUNDS } from '@/lib/constants/geography'
+import { snapToNearestStreetSegment } from '@/lib/engine/routing'
+import { pointInGeoJSONGeometry } from '@/lib/spatial'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899']
 
@@ -32,6 +34,9 @@ export function SpatialAnalysisControls() {
   const stations = useDataStore((s) => s.stations)
   const points = useDataStore((s) => s.points)
   const addStation = useDataStore((s) => s.addStation)
+  const graph = useMapStore((s) => s.graph)
+  const bufferZoneFeature = useMapStore((s) => s.bufferZoneFeature)
+  const map = useMapStore((s) => s.map)
   
   // 1. Coverage Arrays (Buffers)
   const coverageBuffers = useMemo(() => {
@@ -45,9 +50,17 @@ export function SpatialAnalysisControls() {
   // 2. Spatial Analysis (Spider links to nearest station)
   const spatialLinks = useMemo(() => {
     if (!showAnalysis || stations.length === 0 || points.length === 0) return []
-    return points.map(p => {
+    const links: { point: typeof points[0]; station: typeof stations[0] }[] = []
+
+    points.forEach(p => {
+      // Exclude points inside yellow line
+      if (bufferZoneFeature?.geometry && pointInGeoJSONGeometry(p.lat, p.lng, bufferZoneFeature.geometry)) {
+        return
+      }
+
       let minDist = Infinity
-      let nearestSt = stations[0]
+      let nearestSt: typeof stations[0] | null = null
+      
       stations.forEach(st => {
         const d = haversine(p.lat, p.lng, st.lat, st.lng)
         if (d < minDist) {
@@ -55,9 +68,14 @@ export function SpatialAnalysisControls() {
           nearestSt = st
         }
       })
-      return { point: p, station: nearestSt, distance: minDist }
+
+      // Only show links that satisfy the 3km coverage constraint
+      if (nearestSt && minDist <= 3.0) {
+        links.push({ point: p, station: nearestSt })
+      }
     })
-  }, [showAnalysis, stations, points])
+    return links
+  }, [showAnalysis, stations, points, bufferZoneFeature])
 
   // 3. AI Prediction Logic
   const runAiPrediction = () => {
@@ -77,36 +95,85 @@ export function SpatialAnalysisControls() {
     // Quick pseudo-kmeans / centroid algorithm
     const suggestions: {lat: number, lng: number, score: number, coverage: number}[] = []
     
-    // Find clusters of points far from stations
+    // More advanced placement: Find underserved areas avoiding buffer zone
     const underserved = points.filter(p => {
+      // Exclude points inside yellow line
+      if (bufferZoneFeature?.geometry && pointInGeoJSONGeometry(p.lat, p.lng, bufferZoneFeature.geometry)) {
+        return false
+      }
       if (stations.length === 0) return true
       const minDist = Math.min(...stations.map(s => haversine(p.lat, p.lng, s.lat, s.lng)))
-      return minDist > 1.5 // more than 1.5km away
+      return minDist > 3.0 // > 3km
     })
 
-    const targetPoints = underserved.length > 0 ? underserved : points
+    const targetPoints = underserved.length > 0 ? underserved : points.filter(p => !(bufferZoneFeature?.geometry && pointInGeoJSONGeometry(p.lat, p.lng, bufferZoneFeature.geometry)))
 
     if (targetPoints.length > 0) {
-      // Find geographical center of target points
-      let avgLat = 0, avgLng = 0
-      targetPoints.forEach(p => { avgLat += p.lat; avgLng += p.lng })
-      avgLat /= targetPoints.length
-      avgLng /= targetPoints.length
+      // 1. Calculate density (number of nearby underserved points) for each target point
+      const densities = targetPoints.map(p => {
+        const coveredCount = targetPoints.filter(other => haversine(p.lat, p.lng, other.lat, other.lng) <= 3.0).length;
+        return { point: p, count: coveredCount };
+      });
 
-      const nearbyCount = points.filter(p => haversine(avgLat, avgLng, p.lat, p.lng) < 2.0).length
-      
-      suggestions.push({
-        lat: avgLat,
-        lng: avgLng,
-        score: Math.min(99, Math.round((nearbyCount / points.length) * 100)),
-        coverage: nearbyCount
-      })
+      // 2. Sort points by highest density (most needs)
+      densities.sort((a, b) => b.count - a.count);
+
+      // 3. Select top distinct locations (up to 3) that are at least 3km apart from each other
+      const selectedCenters: {lat: number, lng: number}[] = [];
+      for (const item of densities) {
+        if (selectedCenters.length >= 3) break; // Limit to max 3 suggestions
+        
+        const isFarEnough = selectedCenters.every(c => haversine(item.point.lat, item.point.lng, c.lat, c.lng) > 3.0);
+        if (isFarEnough) {
+          selectedCenters.push({ lat: item.point.lat, lng: item.point.lng });
+        }
+      }
+
+      // Fallback
+      if (selectedCenters.length === 0 && densities.length > 0) {
+        selectedCenters.push({ lat: densities[0].point.lat, lng: densities[0].point.lng });
+      }
+
+      // 4. Transform centers by snapping to streets and calculating final score
+      selectedCenters.forEach(center => {
+        let finalLat = center.lat;
+        let finalLng = center.lng;
+
+        // Snap the suggested point to the nearest street segment!
+        if (graph) {
+          const snap = snapToNearestStreetSegment(graph, finalLat, finalLng);
+          if (snap.snapped) {
+            finalLat = snap.lat;
+            finalLng = snap.lng;
+          }
+        }
+
+        // Calculate final coverage using all valid points
+        const nearbyCount = points.filter(p => 
+          haversine(finalLat, finalLng, p.lat, p.lng) <= 3.0 && 
+          !(bufferZoneFeature?.geometry && pointInGeoJSONGeometry(p.lat, p.lng, bufferZoneFeature.geometry))
+        ).length;
+        
+        suggestions.push({
+          lat: finalLat,
+          lng: finalLng,
+          score: Math.min(99, Math.round((nearbyCount / points.length) * 100)),
+          coverage: nearbyCount
+        });
+      });
+
+      // Sort top suggestions by coverage so the absolute best is first
+      suggestions.sort((a, b) => b.coverage - a.coverage);
     }
 
     setAiSuggestions(suggestions)
     setShowAi(true)
     if (suggestions.length > 0) {
-      addNotification(`تم إيجاد ${suggestions.length} موقع مقترح!`, 'success')
+      const msg = suggestions.length > 1 
+        ? `تم إيجاد ${suggestions.length} مواقع مقترحة حسب أولوية الكثافة والاحتياج!` 
+        : `تم إيجاد موقع مقترح وملائم لطبقة الطرق!`;
+      addNotification(msg, 'success')
+      if (map) map.flyTo([suggestions[0].lat, suggestions[0].lng], 15, { animate: true, duration: 1.5 })
     } else {
       addNotification(`التغطية الحالية ممتازة، لا حاجة لمحطات جديدة.`, 'success')
     }
@@ -131,8 +198,6 @@ export function SpatialAnalysisControls() {
   }
 
   if (!isVisible) return null
-
-  const map = useMapStore((s) => s.map)
 
   const handlePreviewAi = (lat: number, lng: number) => {
     if (map) map.flyTo([lat, lng], 15, { animate: true, duration: 1 })
@@ -164,13 +229,6 @@ export function SpatialAnalysisControls() {
           >
             <MapIcon size={18} strokeWidth={2.5} />
           </button>
-          {stations.length > 0 && (
-            <span style={{
-              position: 'absolute', top: -5, right: -5, background: '#ff4b4b', color: 'white',
-              fontSize: '10px', fontWeight: 'bold', padding: '1px 5px', borderRadius: 10,
-              border: '2px solid white', pointerEvents: 'none'
-            }}>{stations.length}</span>
-          )}
         </div>
 
         {/* Spatial Analysis Button (Spider links) */}
@@ -232,77 +290,154 @@ export function SpatialAnalysisControls() {
         </button>
       </div>
 
-      {/* 2. Floating AI Results Card on the Right */}
+      {/* 2. Floating AI Results Card - Redesigned to match System UI */}
       {showAi && aiSuggestions.length > 0 && (
         <div style={{
-          position: 'absolute', top: 20, right: 380, zIndex: 1000, // right 380 stays clear of the sidebar
-          width: 340, background: 'var(--bg-card, #ffffff)', 
-          borderRadius: 12, border: '1px solid var(--border)',
-          boxShadow: 'var(--shadow-lg)', padding: '16px',
-          animation: 'fadeIn 0.3s ease'
+          position: 'absolute', top: 24, left: 60, zIndex: 1000,
+          width: 350, 
+          background: 'var(--bg-card, #ffffff)', 
+          backdropFilter: 'blur(12px)',
+          borderRadius: 12, 
+          border: '1px solid var(--border, rgba(0, 0, 0, 0.1))',
+          boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)', 
+          display: 'flex', flexDirection: 'column',
+          animation: 'fadeIn 0.3s ease',
+          overflow: 'hidden'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <div style={{ width: 4, height: 24, background: 'linear-gradient(180deg, #8b5cf6, #a78bfa)', borderRadius: 2 }} />
-            <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Cpu size={18} color="#8b5cf6" /> 
-              نتائج توقع المـحطات (AI)
-            </h3>
+          {/* Main header block */}
+          <div style={{
+            background: 'var(--bg-elevated, #f8fafc)',
+            padding: '16px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: '1px solid var(--border, rgba(0, 0, 0, 0.05))',
+            borderTop: '3px solid #8b5cf6'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                background: 'rgba(139, 92, 246, 0.15)', padding: '8px',
+                borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <Cpu size={18} color="#8b5cf6" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-main, #1e293b)', fontWeight: 700 }}>التحليل المكاني للشبكة</h3>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginTop: 2 }}>اقتراح موضع محطة جديدة</div>
+              </div>
+            </div>
             <button
               onClick={() => { setShowAi(false); setAiSuggestions([]) }}
-              style={{ background: 'none', border: 'none', marginRight: 'auto', cursor: 'pointer', color: 'var(--text-muted)' }}
+              style={{
+                background: 'transparent', border: 'none', 
+                color: 'var(--text-muted, #64748b)', width: 28, height: 28, borderRadius: '6px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; e.currentTarget.style.color = '#ef4444' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted, #64748b)' }}
             >
               <X size={16} />
             </button>
           </div>
 
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 16 }}>
-            تم تحليل نقاط التوزيع الحالية المسجلة لاكتشاف فجوات التغطية. إليك أفضل موقع مقترح:
-          </div>
+          <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ 
+              fontSize: '0.8rem', color: 'var(--text-muted, #64748b)', 
+              lineHeight: 1.6, background: 'var(--bg-dark, #f1f5f9)',
+              padding: '12px 14px', borderRadius: '8px', border: '1px dashed var(--border, rgba(0,0,0,0.1))'
+            }}>
+              تمت مطابقة التوزيع الجغرافي للعجز الحالي، وجرى توجيه الإحداثيات لتنطبق تماماً مع <b style={{color: 'var(--text-main, #334155)'}}>شبكة الشوارع المتاحة</b> بعيداً عن <b style={{color: 'var(--text-main, #334155)'}}>المناطق العازلة</b>.
+            </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {aiSuggestions.map((sug, idx) => (
-              <div key={idx} style={{
-                background: 'var(--bg-dark)', border: '1px solid rgba(139, 92, 246, 0.2)',
-                borderRadius: 8, padding: 12
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 4 }}><Trophy size={16} color="#f59e0b" /> الموقع الأفضل</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {aiSuggestions.map((sug, idx) => (
+                <div key={idx} style={{
+                  border: idx === 0 ? '1px solid rgba(139, 92, 246, 0.4)' : '1px solid var(--border, rgba(0, 0, 0, 0.05))',
+                  borderRadius: 10, padding: 16, 
+                  background: idx === 0 ? 'rgba(139, 92, 246, 0.03)' : 'var(--bg-elevated, #ffffff)',
+                  position: 'relative', overflow: 'hidden',
+                  transition: 'transform 0.2s',
+                  transform: 'translateY(0)'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  {/* subtle accent line for the top suggestion */}
+                  {idx === 0 && <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 4, background: '#8b5cf6' }} />}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <div style={{ 
+                      fontWeight: 700, fontSize: '0.85rem', color: idx === 0 ? '#8b5cf6' : 'var(--text-main, #334155)', 
+                      display: 'flex', alignItems: 'center', gap: 8
+                    }}>
+                      <Trophy size={16} color={idx === 0 ? "#8b5cf6" : "var(--text-muted, #94a3b8)"} />
+                      {idx === 0 ? 'الخيار الأفضل' : `اقتراح بديل ${idx}`}
+                    </div>
+                    <div style={{ 
+                      padding: '4px 10px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 700,
+                      background: 'rgba(16, 185, 129, 0.1)', color: '#059669', 
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      border: '1px solid rgba(16, 185, 129, 0.2)'
+                    }}>
+                      <Zap size={12} fill="currentColor" /> التغطية: {sug.score}%
+                    </div>
+                  </div>
+
                   <div style={{ 
-                    padding: '2px 8px', borderRadius: 12, fontSize: '0.75rem', fontWeight: 700,
-                    background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)'
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
+                    background: 'var(--bg-dark, #f8fafc)', padding: '10px 14px', borderRadius: '8px',
+                    marginBottom: 16, border: '1px solid var(--border, rgba(0, 0, 0, 0.05))'
                   }}>
-                    <Zap size={14} /> {sug.score}%
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #64748b)', fontWeight: 600 }}>الاستيعاب المحتمل</span>
+                    <span style={{ fontSize: '0.9rem', color: '#10b981', fontWeight: 800 }}>{sug.coverage} <span style={{fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted, #94a3b8)'}}>نقطة</span></span>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button 
+                      onClick={() => handlePreviewAi(sug.lat, sug.lng)}
+                      style={{
+                        flex: 1, padding: '10px', background: 'var(--bg-dark, #f1f5f9)', 
+                        color: 'var(--text-main, #334155)',
+                        border: '1px solid var(--border, rgba(0, 0, 0, 0.1))', borderRadius: 8, fontSize: '0.8rem',
+                        fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', 
+                        display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-elevated, #e2e8f0)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-dark, #f1f5f9)'; }}
+                    >
+                       <Eye size={16} color="var(--primary, #64748b)" /> معاينة
+                    </button>
+                    <button 
+                      onClick={() => handleAcceptAi(sug)}
+                      style={{
+                        flex: 1.5, padding: '10px', background: idx === 0 ? '#8b5cf6' : 'transparent', color: idx === 0 ? '#fff' : '#8b5cf6',
+                        border: idx === 0 ? '1px solid #7c3aed' : '1px solid rgba(139, 92, 246, 0.5)', borderRadius: 8, fontSize: '0.8rem',
+                        fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', 
+                        display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8,
+                        boxShadow: idx === 0 ? '0 4px 12px rgba(139, 92, 246, 0.3)' : 'none'
+                      }}
+                      onMouseEnter={(e) => { 
+                        if (idx === 0) {
+                          e.currentTarget.style.background = '#7c3aed';
+                        } else {
+                          e.currentTarget.style.background = 'rgba(139, 92, 246, 0.1)';
+                        }
+                      }}
+                      onMouseLeave={(e) => { 
+                        if (idx === 0) {
+                          e.currentTarget.style.background = '#8b5cf6';
+                        } else {
+                          e.currentTarget.style.background = 'transparent';
+                        }
+                      }}
+                    >
+                       <CheckCircle2 size={16} /> اعتماد المحطة
+                    </button>
                   </div>
                 </div>
-
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 4 }}>
-                  <strong>نقاط يمكن خدمتها:</strong> {sug.coverage} نقطة
-                </div>
-
-                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                  <button 
-                    onClick={() => handlePreviewAi(sug.lat, sug.lng)}
-                    style={{
-                      flex: 1, padding: '8px', background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6',
-                      border: '1px solid rgba(139, 92, 246, 0.3)', borderRadius: 6, fontSize: '0.8rem',
-                      fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4
-                    }}
-                  >
-                     <Eye size={14} /> معاينة
-                  </button>
-                  <button 
-                    onClick={() => handleAcceptAi(sug)}
-                    style={{
-                      flex: 1, padding: '8px', background: 'linear-gradient(135deg, #059669, #10b981)', color: '#fff',
-                      border: 'none', borderRadius: 6, fontSize: '0.8rem',
-                      fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4
-                    }}
-                  >
-                     <CheckCircle2 size={14} /> اعتماد
-                  </button>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -312,9 +447,8 @@ export function SpatialAnalysisControls() {
       {/* 1. Coverage Buffers */}
       {showCoverage && coverageBuffers.map((item, i) => (
         <LayerGroup key={"cov-"+i}>
-          <Circle center={[item.station.lat, item.station.lng]} radius={1000} pathOptions={{ color: item.color, weight: 1, fillColor: item.color, fillOpacity: 0.2 }} />
-          <Circle center={[item.station.lat, item.station.lng]} radius={3000} pathOptions={{ color: item.color, weight: 1.5, dashArray: '4,6', fillColor: item.color, fillOpacity: 0.1 }} />
-          <Circle center={[item.station.lat, item.station.lng]} radius={5000} pathOptions={{ color: item.color, weight: 1, dashArray: '2,8', fillColor: item.color, fillOpacity: 0.05 }} />
+          <Circle center={[item.station.lat, item.station.lng]} radius={1500} pathOptions={{ color: item.color, weight: 1, fillColor: item.color, fillOpacity: 0.08 }} />
+          <Circle center={[item.station.lat, item.station.lng]} radius={3000} pathOptions={{ color: item.color, weight: 1.5, dashArray: '4,6', fillColor: item.color, fillOpacity: 0.04 }} />
         </LayerGroup>
       ))}
 

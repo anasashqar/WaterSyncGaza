@@ -9,7 +9,6 @@ import { ZONE_TYPES } from '@/lib/constants/colors'
 
 export function ExclusionZonesLayer() {
   const exclusionZones = useDataStore((s) => s.exclusionZones)
-  const toggleZone = useDataStore((s) => s.toggleExclusionZone)
   const removeZone = useDataStore((s) => s.removeExclusionZone)
   const visible = useMapStore((s) => s.layerVisibility.exclusionZones)
 
@@ -48,15 +47,6 @@ export function ExclusionZonesLayer() {
                 الشكل: {zone.shape === 'rectangle' ? 'مساحة مربعة' : zone.shape === 'street' ? 'قطاع شارع' : zone.shape === 'polygon' ? 'مضلع' : 'دائرة'}
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                <button
-                  onClick={() => toggleZone(zone.id)}
-                  style={{
-                    padding: '4px 10px', background: zoneInfo.color, color: '#fff',
-                    border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem',
-                  }}
-                >
-                  تبديل الحالة
-                </button>
                 <button
                   onClick={() => removeZone(zone.id)}
                   style={{

@@ -4,14 +4,24 @@
  *
  * This module contains the core VRP solver logic, fully decoupled from DOM/Leaflet.
  * It takes data as input and returns calculated trip assignments.
+ *
+ * Distribution Constraints:
+ *  1. Spatial association: point must be nearest to this station (spatial analysis)
+ *  2. Coverage radius: distance ≤ 1.5km (3km diameter)
+ *  3. Buffer zone: point must NOT be inside the yellow line
+ *  4. Exclusion zones: route must avoid closed streets entirely
  */
-import type { Station, Point, TripStop, ExclusionZone, RoutingGraph, Institution } from '@/types'
+import type { Station, Point, TripStop, ExclusionZone, RoutingGraph, Institution, GeoJSONFeature } from '@/types'
 import { TRUCK_CAPACITY } from '@/lib/constants/colors'
 import { haversine, findPath } from './routing'
+import { pointInGeoJSONGeometry } from '@/lib/spatial'
 
 // ============================================
 // Types
 // ============================================
+
+/** Maximum coverage radius in km */
+const MAX_COVERAGE_RADIUS_KM = 3.0
 
 export interface MDCVRPInput {
   stations: Station[]
@@ -19,6 +29,8 @@ export interface MDCVRPInput {
   exclusionZones: ExclusionZone[]
   graph: RoutingGraph | null
   findGovernorate: (lat: number, lng: number) => string | null
+  /** Yellow line buffer zone feature — points inside are excluded from distribution */
+  bufferZoneFeature?: GeoJSONFeature | null
 }
 
 export interface DeliveryDetail {
@@ -70,7 +82,7 @@ export interface MDCVRPResult {
  * the trips and deficit report.
  */
 export function calculateMDCVRP(input: MDCVRPInput): MDCVRPResult {
-  const { stations, points, exclusionZones, graph, findGovernorate } = input
+  const { stations, points, exclusionZones, graph, findGovernorate, bufferZoneFeature } = input
 
   // Reset stations
   stations.forEach((s) => {
@@ -103,6 +115,28 @@ export function calculateMDCVRP(input: MDCVRPInput): MDCVRPResult {
     if (recalc) p.governorate = recalc
   })
 
+  // ── Helper: Check if a point is inside the Yellow Line buffer zone ──
+  function isInBufferZone(lat: number, lng: number): boolean {
+    if (!bufferZoneFeature?.geometry) return false
+    return pointInGeoJSONGeometry(lat, lng, bufferZoneFeature.geometry)
+  }
+
+  // ── Helper: Find the nearest station for a point (spatial association) ──
+  function findNearestStation(point: Point): Station | null {
+    if (stations.length === 0) return null
+    let minDist = Infinity
+    let nearest: Station | null = null
+    for (const st of stations) {
+      if (st.institutions.length === 0) continue
+      const d = haversine(point.lat, point.lng, st.lat, st.lng)
+      if (d < minDist) {
+        minDist = d
+        nearest = st
+      }
+    }
+    return nearest
+  }
+
   // Classify points
   const hospitalPoints = points.filter((p) => p.type === 'hospital')
   const nonHospitalPoints = points.filter((p) => p.type !== 'hospital')
@@ -111,14 +145,26 @@ export function calculateMDCVRP(input: MDCVRPInput): MDCVRPResult {
   // ---- Process each station ----
   stations.forEach((station) => {
     if (station.institutions.length === 0) return
-    const stationGov = station.governorate
 
-    // Strict governorate match
+    /**
+     * NEW scope check — replaces governorate constraint:
+     * 1. Point must be spatially associated to this station (nearest station)
+     * 2. Distance must be ≤ MAX_COVERAGE_RADIUS_KM (3km radius)
+     * 3. Point must NOT be inside the yellow line buffer zone
+     */
     function isInStationScope(point: Point): boolean {
-      let pGov = point.governorate || findGovernorate(point.lat, point.lng)
-      let sGov = stationGov || findGovernorate(station.lat, station.lng)
-      if (sGov && pGov) return sGov === pGov
-      return false
+      // Check buffer zone — points in yellow line are never served
+      if (isInBufferZone(point.lat, point.lng)) return false
+
+      // Check coverage radius
+      const dist = haversine(station.lat, station.lng, point.lat, point.lng)
+      if (dist > MAX_COVERAGE_RADIUS_KM) return false
+
+      // Check spatial association — this station must be the nearest one
+      const nearest = findNearestStation(point)
+      if (!nearest || nearest.id !== station.id) return false
+
+      return true
     }
 
     // --- First institution: serve hospitals ---
@@ -127,7 +173,16 @@ export function calculateMDCVRP(input: MDCVRPInput): MDCVRPResult {
 
     if (firstInst) {
       let govHospitals = hospitalPoints.filter(
-        (p) => !servedPointIds.has(p.id) && isInStationScope(p) && p.remainingCapacity > 0
+        (p) => {
+          if (servedPointIds.has(p.id) || p.remainingCapacity <= 0) return false
+          // Manual station assignment constraint
+          if (p.stationId && p.stationId !== station.id) return false
+          // If no manual station, enforce governorate limit
+          if (!p.stationId && !isInStationScope(p)) return false
+          // Manual institution assignment constraint
+          if (p.reservedBy && p.reservedBy !== firstInst.id) return false
+          return true
+        }
       )
       govHospitals.sort(
         (a, b) => haversine(station.lat, station.lng, a.lat, a.lng) - haversine(station.lat, station.lng, b.lat, b.lng)
@@ -145,6 +200,16 @@ export function calculateMDCVRP(input: MDCVRPInput): MDCVRPResult {
         hospital.totalReceived += deliveryAmount
         hospital.remainingCapacity -= deliveryAmount
         hospital.visitedByTrucks.push(`truck_${firstInst.trucks - availableTrucks + 1}`)
+
+        // Auto-attach if not manually set
+        if (!hospital.stationId) {
+          hospital.stationId = station.id
+        }
+        if (!hospital.reservedBy) {
+          hospital.reservedBy = firstInst.id
+          hospital.reservedAt = new Date().toISOString()
+          hospital.reservationStatus = 'reserved'
+        }
 
         if (hospital.remainingCapacity <= 0) {
           hospital.status = 'supplied'
@@ -204,7 +269,14 @@ export function calculateMDCVRP(input: MDCVRPInput): MDCVRPResult {
     }
 
     let allNeighPoints = nonHospitalPoints.filter(
-      (p) => !servedPointIds.has(p.id) && isInStationScope(p) && p.remainingCapacity > 0
+      (p) => {
+        if (servedPointIds.has(p.id) || p.remainingCapacity <= 0) return false
+        // Manual station assignment constraint
+        if (p.stationId && p.stationId !== station.id) return false
+        // If no manual station, enforce governorate limit
+        if (!p.stationId && !isInStationScope(p)) return false
+        return true
+      }
     )
     allNeighPoints.sort(
       (a, b) => haversine(station.lat, station.lng, a.lat, a.lng) - haversine(station.lat, station.lng, b.lat, b.lng)
@@ -214,7 +286,12 @@ export function calculateMDCVRP(input: MDCVRPInput): MDCVRPResult {
       let availableTrucks = totalTrucks
 
       while (availableTrucks > 0) {
-        const point = allNeighPoints.find((p) => !servedPointIds.has(p.id) && p.remainingCapacity > 0)
+        const point = allNeighPoints.find((p) => {
+          if (servedPointIds.has(p.id) || p.remainingCapacity <= 0) return false
+          // Manual institution assignment constraint
+          if (p.reservedBy && p.reservedBy !== inst.id) return false
+          return true
+        })
         if (!point) break
 
         const deliveryAmount = Math.min(TRUCK_CAPACITY, point.remainingCapacity)
@@ -223,6 +300,16 @@ export function calculateMDCVRP(input: MDCVRPInput): MDCVRPResult {
         point.totalReceived += deliveryAmount
         point.remainingCapacity -= deliveryAmount
         point.visitedByTrucks.push(`truck_${truckOffset + (totalTrucks - availableTrucks) + 1}`)
+
+        // Auto-attach if not manually set
+        if (!point.stationId) {
+          point.stationId = station.id
+        }
+        if (!point.reservedBy) {
+          point.reservedBy = inst.id
+          point.reservedAt = new Date().toISOString()
+          point.reservationStatus = 'reserved'
+        }
 
         if (point.remainingCapacity <= 0) {
           point.status = 'supplied'
@@ -266,10 +353,21 @@ export function calculateMDCVRP(input: MDCVRPInput): MDCVRPResult {
     }
   })
 
-  // Identify unserved points
+  // Group active NGOs to distribute unserved points
+  const activeNgoIds = Array.from(new Set(stations.flatMap(s => s.institutions.map(i => i.id))))
+  let suggestionIndex = 0
+
+  // Identify unserved points and distribute suggestions
   points.forEach((p) => {
+    // Reset suggestion first
+    p.suggestedNgoId = null
+    
     if (!servedPointIds.has(p.id) && p.remainingCapacity > 0) {
       p.missedCount++
+      if (activeNgoIds.length > 0) {
+        p.suggestedNgoId = activeNgoIds[suggestionIndex % activeNgoIds.length]
+        suggestionIndex++
+      }
       unservedPoints.push(p)
     }
   })

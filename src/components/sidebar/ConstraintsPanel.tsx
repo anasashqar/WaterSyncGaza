@@ -8,9 +8,6 @@ import {
   Map as MapIcon,
   Layers,
   AlertOctagon,
-  PlayCircle,
-  PauseCircle,
-  Trash2,
   Settings,
   Globe,
   Tag,
@@ -96,8 +93,6 @@ function SectionHeader({ title, icon: Icon }: { title: string, icon: any }) {
 
 export function ConstraintsPanel() {
   const exclusionZones = useDataStore((s) => s.exclusionZones)
-  const toggleZone = useDataStore((s) => s.toggleExclusionZone)
-  const removeZone = useDataStore((s) => s.removeExclusionZone)
   
   const layerVisibility = useMapStore((s) => s.layerVisibility)
   const toggleLayerVisibility = useMapStore((s) => s.toggleLayerVisibility)
@@ -215,44 +210,6 @@ export function ConstraintsPanel() {
         color={layerColors['exclusionZones'] || '#ef4444'}
         onChangeColor={(c) => setLayerColor?.('exclusionZones', c)}
       />
-      <div style={{ padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-elevated)' }}>
-        {exclusionZones.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--text-muted, #94a3b8)', fontSize: '0.8rem' }}>
-            لا توجد مناطق استبعاد.
-          </div>
-        ) : (
-          exclusionZones.map((zone) => (
-            <div key={zone.id} style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '8px 10px', background: 'var(--bg-dark, #f8fafc)', borderRadius: 6,
-              border: `1px solid ${zone.active ? 'var(--danger, #ef4444)' : 'var(--border, #e2e8f0)'}`,
-              opacity: zone.active ? 1 : 0.6,
-            }}>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main, #1e293b)' }}>{zone.name}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)' }}>نصف القطر: {zone.radius}م</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <button onClick={() => toggleZone(zone.id)} style={{
-                  background: 'var(--bg-elevated, #fff)', border: '1px solid var(--border, #e2e8f0)', cursor: 'pointer', padding: '4px', borderRadius: 4,
-                  color: zone.active ? 'var(--text-main, #1e293b)' : 'var(--text-muted, #64748b)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }} title={zone.active ? "إيقاف" : "تفعيل"}>
-                  {zone.active ? <PauseCircle size={14}/> : <PlayCircle size={14}/>}
-                </button>
-                <button onClick={() => removeZone(zone.id)} style={{
-                  background: 'var(--bg-elevated, #fff)', border: '1px solid var(--danger, #ef4444)', cursor: 'pointer', padding: '4px', borderRadius: 4,
-                  color: 'var(--danger, #ef4444)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }} title="حذف">
-                  <Trash2 size={14}/>
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
     </div>
   )
 }

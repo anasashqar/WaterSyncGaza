@@ -3,7 +3,7 @@ import { StationsPanel } from './StationsPanel'
 import { PointsPanel } from './PointsPanel'
 import { MapPin, Factory } from 'lucide-react'
 
-export function SupplyDemandPanel({ onOpenEditor }: { onOpenEditor?: (tab?: 'stations' | 'points') => void } = {}) {
+export function SupplyDemandPanel() {
   const [activeTab, setActiveTab] = useState<'supply' | 'demand'>('supply')
 
   return (
@@ -46,10 +46,10 @@ export function SupplyDemandPanel({ onOpenEditor }: { onOpenEditor?: (tab?: 'sta
        </div>
 
        {/* Content View */}
-       <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div style={{ flex: 1, overflow: 'hidden' }}>
           {activeTab === 'supply' 
-            ? <StationsPanel onOpenEditor={onOpenEditor} /> 
-            : <PointsPanel onOpenEditor={onOpenEditor} />
+            ? <StationsPanel /> 
+            : <PointsPanel />
           }
        </div>
     </div>

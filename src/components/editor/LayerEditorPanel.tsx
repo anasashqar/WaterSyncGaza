@@ -8,16 +8,16 @@ import { useDataStore } from '@/stores/useDataStore'
 import { useMapStore } from '@/stores/useMapStore'
 import { useUIStore } from '@/stores/useUIStore'
 import { TYPE_LABELS, TRUCK_CAPACITY } from '@/lib/constants/colors'
-import type { Station, Point, MapMode } from '@/types'
+import type { Station, Point, MapMode, ExclusionZone, Institution } from '@/types'
 import {
   Edit3, Trash2, MapPin, X, Factory, Search, Upload, Download,
   ChevronDown, ChevronUp, Globe, Plus, Crosshair,
   Truck, Droplets, Users, Check, MousePointer, Layers,
-  AlertTriangle, FileJson, FileSpreadsheet, ChevronRight
+  AlertTriangle, ChevronRight, Building2
 } from 'lucide-react'
 
 /* ═══════ Types ═══════ */
-type EditorTab = 'tools' | 'stations' | 'points'
+type EditorTab = 'tools' | 'stations' | 'points' | 'contracts'
 type StatusFilter = 'all' | 'supplied' | 'warning' | 'critical'
 type TypeFilter = 'all' | 'hospital' | 'residential' | 'camp' | 'shelter'
 
@@ -35,8 +35,12 @@ const lblSt: React.CSSProperties = { fontSize: '0.68rem', fontWeight: 600, color
 
 /* ═══════ Main Panel ═══════ */
 export function LayerEditorPanel({ onClose, initialTab = 'tools' }: { onClose: () => void; initialTab?: EditorTab }) {
+  const institutions = useDataStore(s => s.institutions)
+  const addInstitution = useDataStore(s => s.addInstitution)
+  const removeInstitution = useDataStore(s => s.removeInstitution)
   const stations = useDataStore(s => s.stations)
   const points = useDataStore(s => s.points)
+  const exclusionZones = useDataStore(s => s.exclusionZones)
   const updateStation = useDataStore(s => s.updateStation)
   const removeStation = useDataStore(s => s.removeStation)
   const updatePoint = useDataStore(s => s.updatePoint)
@@ -45,6 +49,7 @@ export function LayerEditorPanel({ onClose, initialTab = 'tools' }: { onClose: (
   const addPoint = useDataStore(s => s.addPoint)
   const setStations = useDataStore(s => s.setStations)
   const setPoints = useDataStore(s => s.setPoints)
+  const setExclusionZones = useDataStore(s => s.setExclusionZones)
   const clearAll = useDataStore(s => s.clearAll)
   const addNotification = useUIStore(s => s.addNotification)
   const flyTo = useMapStore(s => s.flyTo)
@@ -72,10 +77,15 @@ export function LayerEditorPanel({ onClose, initialTab = 'tools' }: { onClose: (
   // ═══ Enable editor mode on mount, disable on close ═══
   const handleClose = () => { setEditorMode(false); setMode(null); onClose() }
 
-  // Activate editor mode
+  // Activate editor mode — toggle off if same mode clicked again
   const activateMode = (m: MapMode) => {
-    setEditorMode(true)
-    setMode(m)
+    if (mode === m) {
+      setMode(null)
+      setEditorMode(false)
+    } else {
+      setEditorMode(true)
+      setMode(m)
+    }
   }
 
   // ═══ Filtering ═══
@@ -123,6 +133,7 @@ export function LayerEditorPanel({ onClose, initialTab = 'tools' }: { onClose: (
         let n = 0
         if (data.stations?.length) { setStations(data.stations); n += data.stations.length }
         if (data.points?.length) { setPoints(data.points); n += data.points.length }
+        if (data.exclusionZones?.length) { setExclusionZones(data.exclusionZones as ExclusionZone[]); n += data.exclusionZones.length }
         if (Array.isArray(data) && data[0]?.lat) {
           if (data[0].dailyCapacity !== undefined) { setStations(data); n += data.length }
           else { setPoints(data); n += data.length }
@@ -131,29 +142,22 @@ export function LayerEditorPanel({ onClose, initialTab = 'tools' }: { onClose: (
       } catch { addNotification('خطأ في قراءة الملف', 'error') }
     }
     reader.readAsText(file); e.target.value = ''
-  }, [setStations, setPoints, addNotification])
+  }, [setStations, setPoints, setExclusionZones, addNotification])
 
-  // ═══ Export ═══
-  const doExport = (format: 'json' | 'csv') => {
-    const isStations = tab === 'stations'
-    if (format === 'json') {
-      const data = isStations
-        ? { stations: stations.map(({ marker, latlng, ...r }) => r) }
-        : { points: points.map(({ marker, latlng, ...r }) => r) }
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-      dl(blob, `watersync_${tab}_${Date.now()}.json`)
-    } else {
-      let csv = ''
-      if (isStations) {
-        csv = 'id,name,lat,lng,governorate,trucks,dailyCapacity\n'
-        stations.forEach(s => { csv += `${s.id},${s.name},${s.lat},${s.lng},${s.governorate},${s.trucks},${s.dailyCapacity}\n` })
-      } else {
-        csv = 'id,name,type,lat,lng,governorate,demand,population,status\n'
-        points.forEach(p => { csv += `${p.id},${p.name},${p.type},${p.lat},${p.lng},${p.governorate},${p.demand},${p.population},${p.status}\n` })
-      }
-      dl(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' }), `watersync_${tab}_${Date.now()}.csv`)
+  // ═══ Clean exclusion zones for export (remove Leaflet objects) ═══
+  const cleanZones = () => exclusionZones.map(({ circle, ...rest }) => rest)
+
+  // ═══ Export All Data (stations + points + exclusion zones) ═══
+  const doExportAll = () => {
+    const data = {
+      exportDate: new Date().toISOString(),
+      stations: stations.map(({ marker, latlng, ...r }) => r),
+      points: points.map(({ marker, latlng, ...r }) => r),
+      exclusionZones: cleanZones(),
     }
-    addNotification(`تم التصدير بنجاح`, 'success')
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    dl(blob, `watersync_all_${Date.now()}.json`)
+    addNotification(`تم تصدير جميع البيانات (${stations.length} محطة، ${points.length} نقطة، ${exclusionZones.length} منطقة مستبعدة)`, 'success')
   }
   const dl = (blob: Blob, name: string) => { const u = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = u; a.download = name; a.click(); URL.revokeObjectURL(u) }
 
@@ -183,6 +187,7 @@ export function LayerEditorPanel({ onClose, initialTab = 'tools' }: { onClose: (
         capacity: TRUCK_CAPACITY, currentFill: 0, remainingCapacity: TRUCK_CAPACITY,
         totalReceived: 0, status: 'critical', lastSupply: null, stationId: null,
         visitedByTrucks: [], missedCount: 0,
+        reservedBy: null, reservedAt: null, reservedUntil: null, reservationStatus: 'available',
       })
     }
     addNotification(`تم إضافة "${name}"`, 'success')
@@ -200,6 +205,7 @@ export function LayerEditorPanel({ onClose, initialTab = 'tools' }: { onClose: (
         const d = JSON.parse(ev.target?.result as string); let c = 0
         if (d.stations) { setStations(d.stations); c += d.stations.length }
         if (d.points) { setPoints(d.points); c += d.points.length }
+        if (d.exclusionZones) { setExclusionZones(d.exclusionZones as ExclusionZone[]); c += d.exclusionZones.length }
         addNotification(`تم استيراد ${c} عنصر`, 'success')
       } catch { addNotification('خطأ في الملف', 'error') }
     }
@@ -284,14 +290,15 @@ export function LayerEditorPanel({ onClose, initialTab = 'tools' }: { onClose: (
           { key: 'tools' as EditorTab, label: 'أدوات', icon: <Layers size={13} /> },
           { key: 'stations' as EditorTab, label: `محطات (${stations.length})`, icon: <Factory size={13} /> },
           { key: 'points' as EditorTab, label: `نقاط (${points.length})`, icon: <MapPin size={13} /> },
+          { key: 'contracts' as EditorTab, label: 'مؤسسات', icon: <Building2 size={13} /> },
         ] as const).map(({ key, label, icon }) => (
           <button key={key} onClick={() => { setTab(key); setSelectedIds(new Set()); setEditId(null) }} style={{
-            flex: 1, padding: '9px 6px', fontSize: '0.75rem', fontWeight: 600,
+            flex: 1, padding: '9px 6px', fontSize: '0.72rem', fontWeight: 600,
             fontFamily: 'inherit', cursor: 'pointer', border: 'none',
             borderBottom: tab === key ? '2px solid var(--accent)' : '2px solid transparent',
             background: tab === key ? 'rgba(56,189,248,0.06)' : 'transparent',
             color: tab === key ? 'var(--accent)' : 'var(--text-muted)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
             transition: 'all 0.2s',
           }}>{icon} {label}</button>
         ))}
@@ -315,25 +322,14 @@ export function LayerEditorPanel({ onClose, initialTab = 'tools' }: { onClose: (
                 <ToolBtn icon={<AlertTriangle size={18} />} label="إغلاق شارع" color="#ef4444"
                   active={mode === 'zone_street'} onClick={() => { activateMode('zone_street'); useMapStore.getState().setLayerVisibility('streets', true) }} />
               </div>
-
-              {mode && (
-                <button onClick={() => { setMode(null); setEditorMode(false) }} style={{
-                  padding: '6px 0', borderRadius: 8, background: 'var(--bg-elevated)',
-                  border: '1px solid var(--glass-border)', color: 'var(--text)',
-                  fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, width: '100%',
-                }}><MousePointer size={13} /> إيقاف وضع الإضافة</button>
-              )}
             </Section>
 
             {/* Import / Export */}
             <Section title="استيراد وتصدير">
               <input ref={fileRef} type="file" accept=".json,.csv" onChange={handleImport} style={{ display: 'none' }} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <ActionBtn icon={<Upload size={14} />} label="استيراد JSON" onClick={() => fileRef.current?.click()} />
-                <ActionBtn icon={<Download size={14} />} label="تصدير JSON" onClick={() => doExport('json')} />
-                <ActionBtn icon={<FileSpreadsheet size={14} />} label="تصدير CSV" onClick={() => doExport('csv')} />
-                <ActionBtn icon={<FileJson size={14} />} label="سحب ملف هنا" onClick={() => fileRef.current?.click()} muted />
+                <ActionBtn icon={<Upload size={14} />} label="استيراد" onClick={() => fileRef.current?.click()} />
+                <ActionBtn icon={<Download size={14} />} label="تصدير" onClick={doExportAll} />
               </div>
             </Section>
 
@@ -342,7 +338,23 @@ export function LayerEditorPanel({ onClose, initialTab = 'tools' }: { onClose: (
               <button onClick={() => {
                 if(window.confirm('هل أنت متأكد من مسح جميع البيانات (محطات، نقاط، مناطق خطرة، رحلات)؟ هذه العملية لا يمكن التراجع عنها.')) {
                   clearAll();
-                  addNotification('تم مسح جميع البيانات بنجاح', 'success');
+                  
+                  // Reset map layers and boundaries to default
+                  const mapStore = useMapStore.getState();
+                  mapStore.setLayerVisibility('gov', true);
+                  mapStore.setLayerVisibility('neigh', true);
+                  mapStore.setLayerVisibility('bufferZone', true);
+                  mapStore.setLayerVisibility('streets', false);
+                  
+                  if (mapStore.map) {
+                    // GAZA_BOUNDS approximate
+                    mapStore.map.flyToBounds([
+                      [31.2, 34.2],
+                      [31.6, 34.6]
+                    ], { duration: 1.5 });
+                  }
+
+                  addNotification('تم مسح جميع البيانات والعودة للوضع الافتراضي', 'success');
                 }
               }} style={{
                 padding: '8px 10px', borderRadius: 8, fontSize: '0.75rem', fontWeight: 600,
@@ -456,6 +468,17 @@ export function LayerEditorPanel({ onClose, initialTab = 'tools' }: { onClose: (
               />
             ))}
           </div>
+        )}
+
+        {/* ──── Contracts Tab ──── */}
+        {tab === 'contracts' && (
+          <ContractsTab
+            institutions={institutions}
+            stations={stations}
+            onAdd={addInstitution}
+            onRemove={removeInstitution}
+            addNotification={addNotification}
+          />
         )}
       </div>
     </div>
@@ -603,8 +626,6 @@ function StationCard({ station, editing, selected, onEdit, onUpdate, onDelete, o
   onDelete: () => void; onFlyTo: () => void; onSelect: () => void
 }) {
   const [name, setName] = useState(station.name)
-  const [trucks, setTrucks] = useState(station.trucks)
-  const [gov, setGov] = useState(station.governorate)
 
   return (
     <div style={{
@@ -620,6 +641,7 @@ function StationCard({ station, editing, selected, onEdit, onUpdate, onDelete, o
           <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'flex', gap: 6 }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}><Truck size={9} /> {station.trucks}</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}><Droplets size={9} /> {station.dailyCapacity.toLocaleString()}</span>
+            {station.governorate && <span>{station.governorate}</span>}
           </div>
         </div>
         <SmBtn icon={<Crosshair size={12} />} tip="عرض" onClick={onFlyTo} />
@@ -627,22 +649,17 @@ function StationCard({ station, editing, selected, onEdit, onUpdate, onDelete, o
         <SmBtn icon={<Trash2 size={12} />} tip="حذف" onClick={onDelete} danger />
       </div>
       {editing && (
-        <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, animation: 'fadeIn 0.2s' }}>
-          <div style={{ gridColumn: '1 / -1' }}>
+        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8, animation: 'fadeIn 0.2s' }}>
+          <div>
             <div style={lblSt}>الاسم</div>
             <input value={name} onChange={e => setName(e.target.value)} onBlur={() => onUpdate({ name })} style={inputSt} />
           </div>
-          <div>
-            <div style={lblSt}>المحافظة</div>
-            <input value={gov} onChange={e => setGov(e.target.value)} onBlur={() => onUpdate({ governorate: gov })} style={inputSt} />
+          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+            📍 {station.governorate || 'غير محدد'} · {station.lat.toFixed(5)}, {station.lng.toFixed(5)}
           </div>
-          <div>
-            <div style={lblSt}>الشاحنات</div>
-            <input type="number" value={trucks} onChange={e => setTrucks(+e.target.value)}
-              onBlur={() => onUpdate({ trucks, dailyCapacity: trucks * TRUCK_CAPACITY, remainingCapacity: trucks * TRUCK_CAPACITY })} style={inputSt} />
-          </div>
-          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', gridColumn: '1 / -1' }}>
-            {station.lat.toFixed(5)}, {station.lng.toFixed(5)}
+          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+            🚛 {station.trucks} شاحنة · {station.dailyCapacity.toLocaleString()} لتر
+            <span style={{ opacity: 0.6, marginRight: 4 }}>(يُحسب تلقائياً من المؤسسات المتعاقدة)</span>
           </div>
         </div>
       )}
@@ -659,7 +676,7 @@ function PointCard({ point, editing, selected, onEdit, onUpdate, onDelete, onFly
   const [name, setName] = useState(point.name)
   const [demand, setDemand] = useState(point.demand)
   const [pop, setPop] = useState(point.population)
-  const sc = point.status === 'supplied' ? 'var(--success)' : point.status === 'warning' ? 'var(--warning)' : 'var(--danger)'
+  const sc = point.status === 'supplied' ? 'var(--success)' : 'var(--danger)'
 
   return (
     <div style={{
@@ -707,17 +724,202 @@ function PointCard({ point, editing, selected, onEdit, onUpdate, onDelete, onFly
           </div>
           <div>
             <div style={lblSt}>الحالة</div>
-            <select value={point.status} onChange={e => onUpdate({ status: e.target.value as Point['status'] })} style={{ ...inputSt, cursor: 'pointer' }}>
-              <option value="critical">حرج</option>
-              <option value="warning">تحذير</option>
-              <option value="supplied">مزوّد</option>
+            <select value={point.status === 'supplied' ? 'supplied' : 'critical'} onChange={e => {
+              const newStatus = e.target.value as 'supplied' | 'critical'
+              onUpdate({ status: newStatus })
+            }} style={{ ...inputSt, cursor: 'pointer' }}>
+              <option value="supplied">مزوّد ✅</option>
+              <option value="critical">غير مزوّد ❌</option>
             </select>
           </div>
           <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', gridColumn: '1 / -1' }}>
-            {point.lat.toFixed(5)}, {point.lng.toFixed(5)}
+            📍 {point.governorate || 'غير محدد'} · {point.lat.toFixed(5)}, {point.lng.toFixed(5)}
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/* ─── Contracts Tab (Institution Management) ─── */
+function ContractsTab({ institutions, stations, onAdd, onRemove, addNotification }: {
+  institutions: Institution[]; stations: Station[]
+  onAdd: (inst: Institution) => void; onRemove: (id: string) => void
+  addNotification: (msg: string, type?: 'warning' | 'success' | 'error' | 'info') => void
+}) {
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [selectedInstId, setSelectedInstId] = useState('')
+  const [selectedStationId, setSelectedStationId] = useState('')
+  const [truckCount, setTruckCount] = useState(1)
+
+  // Group contracts by institution
+  const contractsByInst = useMemo(() => {
+    const map = new Map<string, { inst: Institution; stationContracts: { stationId: string; stationName: string; trucks: number; contractId: string }[] }>()
+    
+    stations.forEach(st => {
+      st.institutions?.forEach(inst => {
+        if (!map.has(inst.name)) {
+          map.set(inst.name, { inst, stationContracts: [] })
+        }
+        map.get(inst.name)!.stationContracts.push({
+          stationId: st.id,
+          stationName: st.name,
+          trucks: inst.trucks,
+          contractId: inst.id,
+        })
+      })
+    })
+    return Array.from(map.values())
+  }, [stations, institutions])
+
+  const handleAdd = () => {
+    if (!selectedInstId || !selectedStationId || truckCount < 1) {
+      addNotification('يرجى ملء جميع الحقول', 'warning')
+      return
+    }
+
+    const inst = institutions.find(i => i.id === selectedInstId)
+    if (!inst) {
+      addNotification('المؤسسة غير موجودة', 'error')
+      return
+    }
+
+    onAdd({
+      id: `inst_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      name: inst.name,
+      trucks: truckCount,
+      color: inst.color,
+      stationIds: [selectedStationId],
+    })
+
+    addNotification(`تم ربط ${inst.name} بالمحطة (${truckCount} شاحنة)`, 'success')
+    setShowAddForm(false)
+    setTruckCount(1)
+  }
+
+  return (
+    <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text)' }}>
+          التعاقدات ({contractsByInst.length} مؤسسة)
+        </div>
+        <button onClick={() => setShowAddForm(!showAddForm)} style={{
+          padding: '5px 12px', borderRadius: 7, fontSize: '0.72rem', fontWeight: 600,
+          fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.2s',
+          background: showAddForm ? 'var(--bg-elevated)' : 'rgba(16,185,129,0.1)',
+          border: `1px solid ${showAddForm ? 'var(--glass-border)' : 'rgba(16,185,129,0.4)'}`,
+          color: showAddForm ? 'var(--text-muted)' : '#10b981',
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}>
+          {showAddForm ? <><X size={12} /> إلغاء</> : <><Plus size={12} /> إضافة تعاقد</>}
+        </button>
+      </div>
+
+      {/* Add Form */}
+      {showAddForm && (
+        <div style={{
+          padding: 12, borderRadius: 10, background: 'rgba(16,185,129,0.04)',
+          border: '1.5px solid rgba(16,185,129,0.2)', animation: 'fadeIn 0.2s',
+          display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
+          <div>
+            <div style={lblSt}>المؤسسة</div>
+            <select value={selectedInstId} onChange={e => setSelectedInstId(e.target.value)}
+              style={{ ...inputSt, cursor: 'pointer' }}>
+              <option value="">— اختر مؤسسة —</option>
+              {institutions.map(i => (
+                <option key={i.id} value={i.id}>{i.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <div style={lblSt}>المحطة</div>
+            <select value={selectedStationId} onChange={e => setSelectedStationId(e.target.value)}
+              style={{ ...inputSt, cursor: 'pointer' }}>
+              <option value="">— اختر محطة —</option>
+              {stations.map(s => (
+                <option key={s.id} value={s.id}>{s.name} ({s.governorate || 'غير محدد'})</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <div style={lblSt}>عدد الشاحنات</div>
+            <input type="number" min={1} value={truckCount} onChange={e => setTruckCount(+e.target.value)} style={inputSt} />
+          </div>
+          <button onClick={handleAdd} style={{
+            padding: '8px 12px', borderRadius: 8, fontSize: '0.75rem', fontWeight: 700,
+            fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.2s',
+            background: '#10b981', border: 'none', color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+          }}>
+            <Check size={14} /> تأكيد التعاقد
+          </button>
+
+          {institutions.length === 0 && (
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center', padding: 8 }}>
+              ⚠️ لا توجد مؤسسات مسجلة في النظام. يتم تسجيلها عند تسجيل دخول المؤسسات.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Contracts List */}
+      {contractsByInst.length === 0 ? (
+        <EmptyMsg text="لا توجد تعاقدات بعد" />
+      ) : (
+        contractsByInst.map(({ inst, stationContracts }) => (
+          <div key={inst.name} style={{
+            borderRadius: 10, background: 'var(--bg-elevated)',
+            border: '1.5px solid var(--glass-border)', overflow: 'hidden',
+          }}>
+            {/* Institution header */}
+            <div style={{
+              padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8,
+              borderBottom: '1px solid var(--glass-border)',
+              background: `${inst.color}08`,
+            }}>
+              <div style={{
+                width: 10, height: 10, borderRadius: '50%', background: inst.color, flexShrink: 0,
+              }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: '0.82rem', color: inst.color }}>{inst.name}</div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                  {stationContracts.length} محطة · {stationContracts.reduce((s, c) => s + c.trucks, 0)} شاحنة إجمالاً
+                </div>
+              </div>
+            </div>
+
+            {/* Station contracts */}
+            {stationContracts.map(contract => (
+              <div key={contract.contractId} style={{
+                padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8,
+                borderBottom: '1px solid var(--glass-border)',
+                fontSize: '0.75rem',
+              }}>
+                <Factory size={12} color="#8b5cf6" style={{ flexShrink: 0 }} />
+                <div style={{ flex: 1, color: 'var(--text)' }}>{contract.stationName}</div>
+                <div style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <Truck size={11} /> {contract.trucks}
+                </div>
+                <SmBtn icon={<Trash2 size={11} />} tip="إزالة التعاقد" onClick={() => {
+                  onRemove(contract.contractId)
+                  addNotification(`تم إزالة تعاقد ${inst.name} مع ${contract.stationName}`, 'info')
+                }} danger />
+              </div>
+            ))}
+          </div>
+        ))
+      )}
+
+      {/* Summary */}
+      <div style={{
+        padding: '10px 12px', borderRadius: 8, background: 'var(--bg-elevated)',
+        border: '1px solid var(--glass-border)', fontSize: '0.72rem',
+        color: 'var(--text-muted)', textAlign: 'center',
+      }}>
+        💡 عدد الرحلات = عدد الشاحنات = مجموع شاحنات المؤسسات المتعاقدة لكل المحطات
+      </div>
     </div>
   )
 }

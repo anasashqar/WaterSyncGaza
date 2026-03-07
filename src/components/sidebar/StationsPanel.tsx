@@ -6,9 +6,7 @@
 import { useState } from "react";
 import { useDataStore } from "@/stores/useDataStore";
 import { useMapStore } from "@/stores/useMapStore";
-import { useUIStore } from "@/stores/useUIStore";
-import { getInstitutionColor } from "@/lib/utils";
-import { Plus, Factory, Truck, Trash2, ChevronDown, ChevronRight, Navigation, Edit2, Droplet, Users } from 'lucide-react';
+import { ChevronDown, ChevronRight, Navigation, Droplet, Users, Factory, Truck } from 'lucide-react';
 
 function StatBox({ value, label, color }: { value: number | string; label: string; color: string }) {
   return (
@@ -45,38 +43,11 @@ function SectionHeader({ title, icon: Icon, action }: { title: string, icon: any
   )
 }
 
-export function StationsPanel({ onOpenEditor }: { onOpenEditor?: (tab?: 'stations' | 'points') => void } = {}) {
+export function StationsPanel() {
   const stations = useDataStore((s) => s.stations);
-  const addInstitution = useDataStore((s) => s.addInstitution);
-  const removeInstitution = useDataStore((s) => s.removeInstitution);
   const map = useMapStore((s) => s.map);
-  const addNotification = useUIStore((s) => s.addNotification);
 
   const [expandedStation, setExpandedStation] = useState<string | null>(null);
-  const [instName, setInstName] = useState("");
-  const [instTrucks, setInstTrucks] = useState<number | ''>("");
-
-  const handleAddInstitution = (stationId: string) => {
-    if (!instName.trim())
-      return addNotification("يرجى إدخال اسم المؤسسة", "warning");
-    if (!instTrucks || instTrucks <= 0)
-      return addNotification("يرجى تحديد عدد شاحنات صالح", "warning");
-
-    const station = stations.find((s) => s.id === stationId);
-    if (!station) return;
-    const color = getInstitutionColor(station.institutions.length);
-    
-    addInstitution({
-      id: `inst_${Date.now()}`,
-      name: instName.trim(),
-      trucks: Number(instTrucks),
-      color,
-      stationId,
-    });
-    setInstName("");
-    setInstTrucks("");
-    addNotification(`تمت إضافة "${instName.trim()}"`, "success");
-  };
 
   const flyTo = (lat: number, lng: number) =>
     map?.flyTo([lat, lng], 15, { duration: 0.8 });
@@ -103,24 +74,7 @@ export function StationsPanel({ onOpenEditor }: { onOpenEditor?: (tab?: 'station
 
       <SectionHeader 
         title="محطات التعبئة (العرض)" 
-        icon={Factory} 
-        action={
-           <button 
-            onClick={() => onOpenEditor?.('stations')}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              background: 'var(--primary, #2563eb)', color: '#fff',
-              border: 'none', borderRadius: 4, padding: '4px 8px',
-              fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
-            onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-            title="فتح محرر الطبقة"
-          >
-            <Edit2 size={12} /> محرر الطبقة
-          </button>
-        }
+        icon={Factory}
       />
 
       {/* List Container */}
@@ -228,21 +182,6 @@ export function StationsPanel({ onOpenEditor }: { onOpenEditor?: (tab?: 'station
                       <div style={{ fontWeight: 500 }}>{station.governorate?.replace('_', ' ') || '-'}</div>
                     </div>
 
-                    {/* فتح المحرر للتعديل — لا يوجد تعديل/حذف مباشر هنا */}
-                    <button
-                      onClick={() => onOpenEditor?.('stations')}
-                      style={{ 
-                         padding: '5px 14px', background: 'var(--bg-elevated, #fff)', border: '1px solid var(--primary, #2563eb)', 
-                         borderRadius: 6, fontSize: '0.7rem', cursor: 'pointer', color: 'var(--primary, #2563eb)', 
-                         fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 16,
-                         transition: 'all 0.2s',
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'var(--primary, #2563eb)'; e.currentTarget.style.color = '#fff' }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-elevated, #fff)'; e.currentTarget.style.color = 'var(--primary, #2563eb)' }}
-                    >
-                      <Edit2 size={12} /> تعديل في المحرر
-                    </button>
-
                     {/* Institutions Dense List */}
                     <div style={{ 
                         fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary-soft, #64748b)', 
@@ -264,51 +203,9 @@ export function StationsPanel({ onOpenEditor }: { onOpenEditor?: (tab?: 'station
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted, #64748b)' }}>{inst.trucks} شاحنة</span>
-                           <button onClick={() => removeInstitution(inst.id)} style={{
-                             background: 'transparent', border: 'none', color: 'var(--danger, #ef4444)', cursor: 'pointer', padding: 2
-                           }} title="حذف المؤسسة">
-                             <Trash2 size={12} />
-                           </button>
                         </div>
                       </div>
                     ))}
-
-                    {/* Add Institution Form Inline */}
-                    <div style={{ 
-                       display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 
-                    }}>
-                       <input 
-                         value={instName}
-                         onChange={e => setInstName(e.target.value)}
-                         placeholder="اسم المؤسسة..."
-                         onKeyDown={(e) => e.key === "Enter" && handleAddInstitution(station.id)}
-                         style={{
-                           flex: 1, padding: '4px 8px', fontSize: '0.7rem',
-                           border: '1px solid var(--border, #cbd5e1)', borderRadius: 4,
-                           background: 'var(--bg-elevated, #fff)', color: 'var(--text-main, #1e293b)'
-                         }}
-                       />
-                       <input 
-                         type="number" 
-                         min="1"
-                         value={instTrucks}
-                         onChange={e => setInstTrucks(e.target.value === '' ? '' : +e.target.value)}
-                         placeholder="شاحنات"
-                         onKeyDown={(e) => e.key === "Enter" && handleAddInstitution(station.id)}
-                         style={{
-                           width: 50, padding: '4px 8px', fontSize: '0.7rem', textAlign: 'center',
-                           border: '1px solid var(--border, #cbd5e1)', borderRadius: 4,
-                           background: 'var(--bg-elevated, #fff)', color: 'var(--text-main, #1e293b)'
-                         }}
-                       />
-                       <button onClick={() => handleAddInstitution(station.id)} style={{
-                         padding: '4px 10px', background: 'var(--primary, #2563eb)', color: '#fff',
-                         border: 'none', borderRadius: 4, fontSize: '0.7rem', fontWeight: 600,
-                         cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4
-                       }}>
-                         <Plus size={12} />
-                       </button>
-                    </div>
 
                   </div>
                 )}

@@ -5,7 +5,7 @@
 import { create } from 'zustand'
 import { initDatabase, dbAdd, dbGetAll, dbClear } from '@/lib/database'
 import { STORES } from '@/lib/constants/database'
-import type { Station, Point, ExclusionZone } from '@/types'
+import type { Station, Point, ExclusionZone, DeliveryRecord } from '@/types'
 
 interface DatabaseState {
   isReady: boolean
@@ -27,6 +27,9 @@ interface DatabaseState {
   } | null>
 
   clearAllData: () => Promise<void>
+
+  saveDelivery: (delivery: DeliveryRecord) => Promise<void>
+  loadDeliveries: () => Promise<DeliveryRecord[]>
 
   exportToJSON: (
     stations: Station[],
@@ -114,8 +117,26 @@ export const useDatabaseStore = create<DatabaseState>((set) => ({
       await dbClear(STORES.points)
       await dbClear(STORES.zones)
       await dbClear(STORES.executions)
+      await dbClear(STORES.deliveries)
     } catch (err) {
       console.error('خطأ في الحذف:', err)
+    }
+  },
+
+  saveDelivery: async (delivery) => {
+    try {
+      await dbAdd(STORES.deliveries, delivery)
+    } catch (err) {
+      console.error('خطأ في حفظ سجل التسليم:', err)
+    }
+  },
+
+  loadDeliveries: async () => {
+    try {
+      return await dbGetAll<DeliveryRecord>(STORES.deliveries)
+    } catch (err) {
+      console.error('خطأ في تحميل سجلات التسليم:', err)
+      return []
     }
   },
 

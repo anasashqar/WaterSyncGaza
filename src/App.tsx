@@ -7,13 +7,17 @@ import { useMapStore } from '@/stores/useMapStore'
 import { MapSetup, MapClickHandler, StationsLayer, PointsLayer, RoutesLayer, ExclusionZonesLayer, GovernoratesLayer, NeighborhoodsLayer, StreetsLayer, BufferZoneLayer, SpatialAnalysisControls, SimulationLayer } from '@/components/map'
 import { AppToolbar } from '@/components/toolbar'
 import { Sidebar } from '@/components/sidebar'
-import { ToastContainer, NotificationTester, SimulationPanel } from '@/components/ui'
+import { ToastContainer, SimulationPanel } from '@/components/ui'
 import { DashboardView, ReportsView } from '@/components/reports'
+import { DriverFieldView } from '@/components/driver'
 import { LayerEditorPanel } from '@/components/editor'
 import { NotificationRulesEngine } from '@/services/NotificationRulesEngine'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { NGOSetupWizard } from '@/components/onboarding/NGOSetupWizard'
+import { LoginScreen } from '@/components/auth/LoginScreen'
 
 /** Current full-screen view overlay */
-type AppView = 'map' | 'dashboard' | 'reports'
+type AppView = 'map' | 'dashboard' | 'reports' | 'driver'
 
 /**
  * WaterSync — نظام إدارة توزيع المياه الذكي
@@ -27,6 +31,13 @@ function App() {
   const [editorInitialTab, setEditorInitialTab] = useState<'tools' | 'stations' | 'points'>('tools')
   const baseMapVisible = useMapStore((s) => s.layerVisibility.baseMap)
   const baseMapSource = useMapStore((s) => s.baseMapSource)
+
+  const role = useAuthStore((s) => s.role)
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const ngoSetupComplete = useAuthStore((s) => s.ngoSetupComplete)
+  const isAdmin = role === 'admin'
+  const isNGO = role === 'ngo'
+  const isDriver = role === 'driver'
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -45,28 +56,32 @@ function App() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ──── Keyboard Shortcuts ────
+  // ──── Keyboard Shortcuts (role-gated) ────
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      // Ignore if user is typing in input/textarea
       if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return
 
       if (e.ctrlKey || e.metaKey) {
         switch (e.key.toLowerCase()) {
           case 'd':
+            if (!isAdmin) break
             e.preventDefault()
             setView((v) => (v === 'dashboard' ? 'map' : 'dashboard'))
             break
           case 'r':
-            // Don't hijack browser refresh
-            if (!e.shiftKey) break
+            if (!isAdmin || !e.shiftKey) break
             e.preventDefault()
             setView((v) => (v === 'reports' ? 'map' : 'reports'))
             break
            case 'e':
+            if (!isAdmin) break
             e.preventDefault()
             setEditorOpen(v => !v)
             if (!editorOpen) setEditorInitialTab('tools')
+            break
+          case 'f':
+            e.preventDefault()
+            if (isDriver) setView((v) => (v === 'driver' ? 'map' : 'driver'))
             break
         }
       }
@@ -76,12 +91,17 @@ function App() {
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [editorOpen])
+  }, [editorOpen, isAdmin])
 
   // ──── Open Editor with context sync ────
   const openEditorWithTab = (tab?: 'stations' | 'points') => {
     setEditorInitialTab(tab || 'tools')
     setEditorOpen(true)
+  }
+
+  // Show role selection screen on first launch
+  if (!isAuthenticated) {
+    return <LoginScreen />
   }
 
   return (
@@ -91,6 +111,7 @@ function App() {
         onOpenDashboard={() => setView('dashboard')}
         onOpenReports={() => setView('reports')}
         onOpenEditor={() => setEditorOpen(v => !v)}
+        onOpenDriver={() => setView('driver')}
       />
 
       {/* Main content: Map + Sidebar — calc(100vh - 56px header - 52px toolbar) */}
@@ -112,7 +133,7 @@ function App() {
             style={{ width: '100%', height: '100%' }}
           >
             <MapSetup />
-            <MapClickHandler />
+            {isAdmin && <MapClickHandler />}
             <ZoomControl position="topleft" />
 
             {baseMapVisible && (
@@ -133,15 +154,15 @@ function App() {
             <StationsLayer />
             <PointsLayer />
             <RoutesLayer />
-            <ExclusionZonesLayer />
+            {isAdmin && <ExclusionZonesLayer />}
             <SimulationLayer />
-            <SpatialAnalysisControls />
+            {isAdmin && <SpatialAnalysisControls />}
           </MapContainer>
 
-          {/* Editor Panel (floats on top of map) */}
-          {editorOpen && <LayerEditorPanel onClose={() => setEditorOpen(false)} initialTab={editorInitialTab} />}
+          {/* Editor Panel (admin only) */}
+          {isAdmin && editorOpen && <LayerEditorPanel onClose={() => setEditorOpen(false)} initialTab={editorInitialTab} />}
 
-          {/* Simulation controls (floats on map) */}
+          {/* Simulation controls */}
           <SimulationPanel />
         </div>
 
@@ -151,11 +172,16 @@ function App() {
 
       {/* Toast Notifications */}
       <ToastContainer />
-      <NotificationTester />
 
       {/* Full-screen Overlays */}
-      {view === 'dashboard' && <DashboardView onClose={() => setView('map')} />}
-      {view === 'reports' && <ReportsView onClose={() => setView('map')} />}
+      {isAdmin && view === 'dashboard' && <DashboardView onClose={() => setView('map')} />}
+      {(isAdmin || isNGO) && view === 'reports' && <ReportsView onClose={() => setView('map')} />}
+      {isDriver && view === 'driver' && <DriverFieldView onClose={() => setView('map')} />}
+
+      {/* NGO Setup Wizard (first time only) */}
+      {isNGO && !ngoSetupComplete && (
+        <NGOSetupWizard onComplete={() => useAuthStore.getState().completeNGOSetup()} />
+      )}
     </div>
   )
 }

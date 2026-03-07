@@ -1,92 +1,59 @@
-/**
- * WaterSync — Toast Notifications — Original toast.css Clone
- */
 import { useUIStore } from '@/stores/useUIStore'
-import { CheckCircle2, AlertTriangle, XCircle, Info, X } from 'lucide-react'
+import { AlertTriangle, XCircle, Info, X } from 'lucide-react'
 
+// System notifications container. Toasts are reserved for critical exceptions or warnings.
 export function ToastContainer() {
   const notifications = useUIStore((s) => s.notifications)
   const removeNotification = useUIStore((s) => s.removeNotification)
 
   if (notifications.length === 0) return null
 
+  // Redefined icons for dark enterprise aesthetic
   const icons: Record<string, React.ReactNode> = {
-    success: <CheckCircle2 size={18} strokeWidth={2.5} color="var(--success)" />, 
-    warning: <AlertTriangle size={18} strokeWidth={2.5} color="var(--warning)" />, 
-    error: <XCircle size={18} strokeWidth={2.5} color="var(--danger)" />, 
-    info: <Info size={18} strokeWidth={2.5} color="var(--primary)" />,
+    // success: Used extremely rarely now, maps to info
+    success: <Info className="w-4 h-4 text-blue-500" strokeWidth={2.5} />, 
+    warning: <AlertTriangle className="w-4 h-4 text-yellow-500" strokeWidth={2.5} />,
+    error: <XCircle className="w-4 h-4 text-red-500" strokeWidth={2.5} />,
+    info: <Info className="w-4 h-4 text-blue-500" strokeWidth={2.5} />,
   }
 
   return (
-    <div style={{
-      position: 'fixed', top: 120, right: 24,
-      zIndex: 10002, display: 'flex', flexDirection: 'column',
-      gap: 10, maxWidth: 380, pointerEvents: 'none',
-      direction: 'rtl',
-    }}>
+    <div 
+      className="fixed top-[80px] left-0 right-0 z-[99999] flex flex-col items-center gap-2.5 pointer-events-none" 
+      dir="rtl"
+    >
       {notifications.map((notif) => {
-        const typeColors: Record<string, string> = {
-          success: 'var(--success)', warning: 'var(--warning)',
-          error: 'var(--danger)', info: 'var(--primary)',
-        }
-        const typeBgs: Record<string, string> = {
-          success: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(0,135,90,0.08) 100%)',
-          warning: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(217,119,6,0.08) 100%)',
-          error: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(196,30,58,0.08) 100%)',
-          info: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(30,58,95,0.1) 100%)',
-        }
-
         return (
-          <div key={notif.id} style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            padding: '14px 18px',
-            background: typeBgs[notif.type] || typeBgs.info,
-            borderRadius: 12, border: '1px solid var(--border)',
-            borderLeft: `3px solid ${typeColors[notif.type] || typeColors.info}`,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.25), 0 2px 8px rgba(0,0,0,0.15)',
-            pointerEvents: 'all', cursor: 'pointer',
-            backdropFilter: 'blur(12px)',
-            animation: 'toastSlideIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards',
-            position: 'relative',
-          }}
+          <div 
+            key={notif.id} 
+            role="alert"
+            aria-live="assertive"
+            className="flex items-start gap-3 px-4 py-3 bg-neutral-900 rounded-xl border border-neutral-800 shadow-2xl pointer-events-auto cursor-pointer relative animate-[dropdownFade_0.3s_ease_forwards] min-w-[300px] max-w-[450px]"
             onClick={() => removeNotification(notif.id)}
           >
             {/* Icon */}
-            <div style={{
-              flexShrink: 0, fontSize: '1.3rem', lineHeight: 1,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 32, height: 32,
-            }}>
-              {icons[notif.type]}
+            <div className="shrink-0 flex items-center justify-center w-[18px] h-[18px] mt-[1px]">
+              {icons[notif.type] || icons.info}
             </div>
+            
             {/* Content */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text)', lineHeight: 1.5 }}>
+            <div className="flex-1 min-w-0">
+              <div className="text-[0.85rem] font-medium text-neutral-100 leading-snug">
                 {notif.message}
               </div>
             </div>
+            
             {/* Close */}
-            <button style={{
-              flexShrink: 0, width: 26, height: 26, borderRadius: 6,
-              border: 'none', background: 'transparent', color: 'var(--text-muted)',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'all 0.2s', fontSize: '0.75rem', opacity: 0.5,
-            }}
-              onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'rgba(255,255,255,0.1)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.5'; e.currentTarget.style.background = 'transparent' }}
-            ><X size={14} /></button>
-            {/* Progress bar */}
-            <div style={{
-              position: 'absolute', bottom: 0, left: 0, right: 0,
-              height: 3, background: 'rgba(255,255,255,0.08)',
-              borderRadius: '0 0 12px 12px', overflow: 'hidden',
-            }}>
-              <div style={{
-                height: '100%', width: '100%', transformOrigin: 'left',
-                background: typeColors[notif.type] || typeColors.info,
-                animation: 'toastProgress 4s linear forwards',
-              }} />
-            </div>
+            <button 
+              className="shrink-0 w-[22px] h-[22px] rounded border-none bg-transparent text-neutral-400 cursor-pointer flex items-center justify-center transition-all duration-150 p-0 -ml-1 -mt-0.5 hover:text-white hover:bg-white/10"
+              onClick={(e) => {
+                  e.stopPropagation();
+                  removeNotification(notif.id);
+              }}
+              aria-label="إغلاق التنبيه"
+            >
+                <X size={14} />
+            </button>
           </div>
         )
       })}

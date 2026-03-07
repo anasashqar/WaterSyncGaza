@@ -4,7 +4,7 @@
  */
 
 export const DB_NAME = 'WaterSyncDB'
-export const DB_VERSION = 1
+export const DB_VERSION = 2
 
 export const STORES = {
   stations: 'stations',
@@ -13,4 +13,5 @@ export const STORES = {
   zones: 'exclusionZones',
   executions: 'executions',
   history: 'history',
+  deliveries: 'deliveries',
 } as const

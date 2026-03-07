@@ -47,6 +47,11 @@ export function initDatabase(): Promise<IDBDatabase> {
         histStore.createIndex('date', 'date')
         histStore.createIndex('pointId', 'pointId')
       }
+      if (!database.objectStoreNames.contains(STORES.deliveries)) {
+        const delStore = database.createObjectStore(STORES.deliveries, { keyPath: 'id' })
+        delStore.createIndex('pointId', 'pointId')
+        delStore.createIndex('institutionId', 'institutionId')
+      }
     }
   })
 }

@@ -31,7 +31,7 @@ export interface Institution {
   name: string
   trucks: number
   color: string
-  stationId: string
+  stationIds: string[]
 }
 
 /** Distribution demand point */
@@ -58,6 +58,75 @@ export interface Point {
   priority?: number
   marker?: L.Marker
   latlng?: L.LatLng
+
+  // ── Reservation fields (Plan 3 — Phase 1) ──
+  /** Which institution reserved this point for today */
+  reservedBy: string | null
+  /** When the reservation was made */
+  reservedAt: string | null
+  /** Reservation expiry (end of day) */
+  reservedUntil: string | null
+  /** Current reservation status */
+  reservationStatus: ReservationStatus
+  /** Suggested NGO for unreserved points (Plan 3) */
+  suggestedNgoId?: string | null
+}
+
+// ============================================
+// Reservation & Delivery (Plan 3)
+// ============================================
+
+/** Reservation lifecycle states */
+export type ReservationStatus = 'available' | 'reserved' | 'in_transit' | 'delivered' | 'verified'
+
+/** Delivery lifecycle states */
+export type DeliveryStatus = 'pending' | 'loaded' | 'in_transit' | 'unloaded' | 'verified' | 'cancelled'
+
+/** A single delivery record (field execution) */
+export interface DeliveryRecord {
+  id: string
+  /** Trip this delivery belongs to */
+  tripId: string
+  /** Target point */
+  pointId: string
+  /** Institution performing the delivery */
+  institutionId: string
+  /** Driver identifier */
+  driverId: string
+  /** Station where water was loaded */
+  stationId: string
+  /** Amount in liters */
+  liters: number
+  /** Current delivery status */
+  status: DeliveryStatus
+  /** Timestamp: loaded at station */
+  loadedAt: string | null
+  /** GPS coords at loading */
+  loadedGPS: [number, number] | null
+  /** Timestamp: unloaded at destination */
+  unloadedAt: string | null
+  /** GPS coords at unloading */
+  unloadedGPS: [number, number] | null
+  /** Receipt confirmation (double verification) */
+  receipt: ReceiptConfirmation | null
+  /** Created timestamp */
+  createdAt: string
+  /** Is this record pending sync (offline)? */
+  pendingSync: boolean
+}
+
+/** Receipt confirmation — signed on driver's device by the receiver */
+export interface ReceiptConfirmation {
+  /** Name of person who received the water */
+  receiverName: string
+  /** Actual liters confirmed by receiver */
+  confirmedLiters: number
+  /** Optional notes */
+  notes: string
+  /** Timestamp of confirmation */
+  confirmedAt: string
+  /** GPS at time of confirmation */
+  confirmedGPS: [number, number] | null
 }
 
 /** Calculated trip / route */
@@ -74,6 +143,8 @@ export interface Trip {
   polyline?: L.Polyline
   executionStatus?: string
   executionTime?: string
+  /** Institution that owns this trip (Plan 3) */
+  institutionId?: string
 }
 
 /** A single stop in a trip */

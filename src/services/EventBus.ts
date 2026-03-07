@@ -5,6 +5,8 @@ export type SystemEventTypes =
   | 'EMERGENCY_REROUTE'
   | 'BATCH_APPROVED'
   | 'DAILY_REPORT_GEN'
+  | 'RESERVATION_CONFLICT'
+  | 'POINT_RESERVED'
 
 export interface SystemEventPayload {
   id: string

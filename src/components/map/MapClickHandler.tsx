@@ -129,6 +129,11 @@ export function MapClickHandler() {
           stationId: null,
           visitedByTrucks: [],
           missedCount: 0,
+          // Reservation defaults (Plan 3)
+          reservedBy: null,
+          reservedAt: null,
+          reservedUntil: null,
+          reservationStatus: 'available' as const,
         }
 
         const inZone = isInExclusionZone(exclusionZones, lat, lng)

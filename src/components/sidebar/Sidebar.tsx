@@ -16,12 +16,15 @@ const NAV_ITEMS: { key: SidebarPanel; icon: React.ReactNode; label: string }[] =
   { key: 'constraints', icon: <Settings size={22} />, label: 'القيود' },
 ]
 
-export function Sidebar({ onOpenEditor }: { onOpenEditor?: (tab?: 'stations' | 'points') => void } = {}) {
+export function Sidebar() {
   const activePanel = useUIStore((s) => s.activePanel)
   const setActivePanel = useUIStore((s) => s.setActivePanel)
   const sidebarOpen = useUIStore((s) => s.sidebarOpen)
 
   if (!sidebarOpen) return null
+
+  // All roles see all tabs; edit actions inside panels are admin-gated
+  const visibleItems = NAV_ITEMS
 
   return (
     <aside style={{
@@ -44,7 +47,7 @@ export function Sidebar({ onOpenEditor }: { onOpenEditor?: (tab?: 'stations' | '
         padding: '20px 0', gap: 12,
         overflowY: 'auto', scrollbarWidth: 'none',
       }}>
-        {NAV_ITEMS.map((item) => {
+        {visibleItems.map((item) => {
           const isActive = activePanel === item.key
           return (
             <button
@@ -107,7 +110,7 @@ export function Sidebar({ onOpenEditor }: { onOpenEditor?: (tab?: 'stations' | '
         flex: 1, overflowY: 'auto', padding: 16,
         background: 'var(--bg-card)', height: '100%',
       }}>
-        {activePanel === 'supply' && <SupplyDemandPanel onOpenEditor={onOpenEditor} />}
+        {activePanel === 'supply' && <SupplyDemandPanel />}
         {activePanel === 'trips' && <TripsPanel />}
         {activePanel === 'constraints' && <ConstraintsPanel />}
       </div>

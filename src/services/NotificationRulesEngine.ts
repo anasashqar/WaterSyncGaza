@@ -20,12 +20,12 @@ class NotificationRulesEngineClass {
   private rules: RulesRegistry = {
     WATER_DELIVERED: [
       {
-        targetRoles: ['org', 'manager'],
+        targetRoles: ['ngo', 'admin'],
         formatMessage: (e) => `تم توصيل المياه: شحنة ${e.data.amount}L من السائق ${e.data.driverName}`,
         severity: 'success',
       },
       {
-        targetRoles: ['coordinator'],
+        targetRoles: ['admin'],
         formatMessage: (e) => `تأكيد ميداني: تم تسليم المياه في النقطة #${e.data.pointId}`,
         severity: 'info',
       }
@@ -33,7 +33,7 @@ class NotificationRulesEngineClass {
     STATION_DEPLETED: [
       {
         // Only high or critical will alert everyone (except drivers)
-        targetRoles: ['org', 'manager', 'coordinator'],
+        targetRoles: ['ngo', 'admin'],
         condition: (e) => e.importance === 'critical' || e.importance === 'high',
         formatMessage: (e) => `عاجل: المحطة ${e.data.stationName} نفدت من المياه!`,
         severity: 'error',
@@ -51,16 +51,30 @@ class NotificationRulesEngineClass {
         severity: 'warning',
       },
       {
-        targetRoles: ['coordinator'],
+        targetRoles: ['admin', 'ngo'],
         formatMessage: (e) => `تم إعادة توجيه مسار السائق لنقطة #${e.data.newPointId}`,
         severity: 'info',
       }
     ],
     BATCH_APPROVED: [
       {
-         targetRoles: ['manager', 'org'],
+         targetRoles: ['admin', 'ngo'],
          formatMessage: (e) => `ملخص: تمت الموافقة على تعبئة ${e.data.count} دفعة بنجاح`,
          severity: 'success'
+      }
+    ],
+    RESERVATION_CONFLICT: [
+      {
+        targetRoles: ['admin', 'ngo'],
+        formatMessage: (e) => `⚠️ تضارب حجز: ${e.data.ngoName} حاولت حجز "${e.data.pointName}" المحجوزة من ${e.data.heldByName}`,
+        severity: 'warning'
+      }
+    ],
+    POINT_RESERVED: [
+      {
+        targetRoles: ['admin'],
+        formatMessage: (e) => `📋 ${e.data.ngoName} حجزت نقطة "${e.data.pointName}"`,
+        severity: 'info'
       }
     ]
   }

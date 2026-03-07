@@ -75,3 +75,12 @@ export const EXEC_STATUS = {
   delayed: { name: 'متأخر', color: 'var(--color-danger)', icon: '!' },
   cancelled: { name: 'ملغي', color: 'var(--text-muted)', icon: 'x' },
 } as const
+
+/** Reservation status labels and colors (Plan 3) */
+export const RESERVATION_STATUS = {
+  available:  { name: 'متاح', color: '#6B7280', icon: '○' },
+  reserved:   { name: 'محجوز', color: '#F59E0B', icon: '🔒' },
+  in_transit: { name: 'في الطريق', color: '#3B82F6', icon: '🚛' },
+  delivered:  { name: 'تم التوصيل', color: '#10B981', icon: '📦' },
+  verified:   { name: 'مُؤكّد', color: '#059669', icon: '✅' },
+} as const

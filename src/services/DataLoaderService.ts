@@ -19,7 +19,14 @@ export class DataLoaderService {
 
       const data = await response.json()
       
-      const { setStations, setPoints, setExclusionZones, setInstitutions } = useDataStore.getState()
+      const { setStations, setPoints, setExclusionZones, setInstitutions, points, stations } = useDataStore.getState()
+
+      // If data is already populated (e.g. via cross-tab sync), do NOT overwrite
+      if (points.length > 0 || stations.length > 0) {
+        console.log('[INFO] Data already present in store (via sync). Skipping default JSON load.')
+        DataLoaderService.loadGeoData()
+        return
+      }
 
       if (data.stations && Array.isArray(data.stations)) {
         // Normalize station data — fill in missing numeric fields
@@ -36,7 +43,32 @@ export class DataLoaderService {
         
         // Extract and set institutions from stations
         const allInstitutions = normalizedStations.flatMap((station: Station) => station.institutions || [])
-        setInstitutions(allInstitutions)
+        
+        const orgMap = new Map<string, any>()
+        allInstitutions.forEach((inst: any) => {
+          const key = inst.name
+          if (!orgMap.has(key)) {
+            orgMap.set(key, { ...inst, stationIds: inst.stationId ? [inst.stationId] : [] })
+          } else {
+            const existing = orgMap.get(key)!
+            if (inst.stationId && !existing.stationIds.includes(inst.stationId)) {
+              existing.stationIds.push(inst.stationId)
+            }
+            // Accumulated trucks across all stations for this NGO
+            existing.trucks += (inst.trucks || 0)
+          }
+        })
+
+        setInstitutions(Array.from(orgMap.values()) as typeof allInstitutions)
+        
+        // Ensure station local institutions also match the new type (convert stationId to stationIds)
+        normalizedStations.forEach(st => {
+          if (st.institutions) {
+             st.institutions.forEach((localInst: any) => {
+                localInst.stationIds = localInst.stationId ? [localInst.stationId] : [st.id]
+             })
+          }
+        })
       }
 
       if (data.points && Array.isArray(data.points)) {
@@ -54,6 +86,11 @@ export class DataLoaderService {
           status: p.status ?? 'critical',
           stationId: p.stationId ?? null,
           lastSupply: p.lastSupply ?? null,
+          // Reservation defaults (Plan 3 — Phase 1)
+          reservedBy: p.reservedBy ?? null,
+          reservedAt: p.reservedAt ?? null,
+          reservedUntil: p.reservedUntil ?? null,
+          reservationStatus: p.reservationStatus ?? 'available',
         })) as Point[]
 
         setPoints(normalizedPoints)

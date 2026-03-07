@@ -35,7 +35,7 @@ export function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: 
 export function buildRoutingGraph(geojson: GeoJSONData): RoutingGraph {
   const nodes: RoutingGraph['nodes'] = {}
   const edges: RoutingGraph['edges'] = {}
-  const PRECISION = 10000 // 4 decimal places ≈ 11m snapping tolerance
+  const PRECISION = 5000 // 3 decimal places ≈ 22m snapping tolerance (wider for better matching)
 
   for (const feature of geojson.features) {
     if (feature.geometry?.type !== 'LineString') continue
@@ -79,11 +79,12 @@ export function buildRoutingGraph(geojson: GeoJSONData): RoutingGraph {
 // Nearest Node / Snap to Street
 // ============================================
 
-/** Find the nearest graph node to a given point */
+/** Find the nearest graph node to a given point, within an optional maxDist (km) */
 export function findNearestNode(
   graph: RoutingGraph,
   lat: number,
-  lng: number
+  lng: number,
+  maxDist?: number
 ): string | null {
   if (!graph) return null
   let minDist = Infinity
@@ -97,6 +98,8 @@ export function findNearestNode(
       nearest = id
     }
   }
+  // If maxDist is set and nearest is too far, return null
+  if (maxDist !== undefined && minDist > maxDist) return null
   return nearest
 }
 
@@ -315,8 +318,26 @@ export function findPath(
   if (!graph) return directPath
 
   // Snap start and end to nearest street segment
-  const snapStart = snapToNearestStreetSegment(graph, lat1, lng1)
-  const snapEnd = snapToNearestStreetSegment(graph, lat2, lng2)
+  let snapStart = snapToNearestStreetSegment(graph, lat1, lng1)
+  let snapEnd = snapToNearestStreetSegment(graph, lat2, lng2)
+
+  // If snap distance is too large (> 200m), try to find a closer node
+  // This prevents straight-line fallback when points are far from the street network
+  const MAX_SNAP_DIST_KM = 0.2 // 200 meters
+  if (!snapStart.snapped || snapStart.dist > MAX_SNAP_DIST_KM) {
+    const nearNode = findNearestNode(graph, lat1, lng1)
+    if (nearNode) {
+      const n = graph.nodes[nearNode]
+      snapStart = { lat: n.lat, lng: n.lng, nodeA: nearNode, nodeB: nearNode, dist: haversine(lat1, lng1, n.lat, n.lng), snapped: true }
+    }
+  }
+  if (!snapEnd.snapped || snapEnd.dist > MAX_SNAP_DIST_KM) {
+    const nearNode = findNearestNode(graph, lat2, lng2)
+    if (nearNode) {
+      const n = graph.nodes[nearNode]
+      snapEnd = { lat: n.lat, lng: n.lng, nodeA: nearNode, nodeB: nearNode, dist: haversine(lat2, lng2, n.lat, n.lng), snapped: true }
+    }
+  }
 
   // If both snapped onto the same edge → direct segment
   if (
@@ -376,7 +397,6 @@ export function findPath(
       const openSet = new Set([start])
       const closedSet = new Set<string>()
 
-      const EXCLUSION_PENALTY = 100
 
       let iterations = 0
       while (openSet.size && iterations++ < 10000) {
@@ -415,18 +435,16 @@ export function findPath(
         for (const edge of graph.edges[current] || []) {
           if (closedSet.has(edge.to)) continue
 
-          let edgeCost = edge.dist
+          // BLOCK edges crossing exclusion zones (instead of just penalizing)
           const currentNode = graph.nodes[current]
           const targetNode = graph.nodes[edge.to]
-
-          // Penalize edges crossing exclusion zones
           if (currentNode && targetNode) {
             if (pathCrossesExclusionZone(zones, currentNode.lat, currentNode.lng, targetNode.lat, targetNode.lng)) {
-              edgeCost += EXCLUSION_PENALTY
+              continue // Completely skip this edge — do not traverse through exclusion zones
             }
           }
 
-          const tentativeG = gScore[current] + edgeCost
+          const tentativeG = gScore[current] + edge.dist
           if (tentativeG < (gScore[edge.to] ?? Infinity)) {
             cameFrom[edge.to] = current
             edgeUsed[edge.to] = edge
