@@ -93,11 +93,7 @@ function App() {
     return () => window.removeEventListener('keydown', handleKey)
   }, [editorOpen, isAdmin])
 
-  // ──── Open Editor with context sync ────
-  const openEditorWithTab = (tab?: 'stations' | 'points') => {
-    setEditorInitialTab(tab || 'tools')
-    setEditorOpen(true)
-  }
+
 
   // Show role selection screen on first launch
   if (!isAuthenticated) {
@@ -167,7 +163,7 @@ function App() {
         </div>
 
         {/* Sidebar */}
-        <Sidebar onOpenEditor={openEditorWithTab} />
+        <Sidebar />
       </div>
 
       {/* Toast Notifications */}
