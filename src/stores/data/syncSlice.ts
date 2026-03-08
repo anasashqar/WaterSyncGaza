@@ -4,6 +4,7 @@ import type { DataState, SyncState } from './types'
 export const createSyncSlice: StateCreator<DataState, [], [], SyncState> = (set, get) => ({
   deliveries: [],
 
+  
   addDelivery: (delivery) => {
     set((s) => ({ deliveries: [...s.deliveries, delivery] }))
     // Persist to IndexedDB in the background
