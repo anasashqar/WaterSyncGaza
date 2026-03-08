@@ -22,6 +22,7 @@ import {
   X,
   Droplets,
   Truck,
+  FileSignature,
 } from "lucide-react";
 
 interface ToolbarProps {
@@ -47,6 +48,7 @@ export function AppToolbar({
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const institutionId = useAuthStore((s) => s.institutionId);
+  const openContractManager = useAuthStore((s) => s.openContractManager);
   const isAdmin = role === "admin";
   const isNGO = role === "ngo";
   const isDriver = role === "driver";
@@ -233,6 +235,13 @@ export function AppToolbar({
             icon={<Truck size={15} />}
             label="الميدان"
             onClick={() => onOpenDriver?.()}
+          />
+        )}
+        {isNGO && (
+          <NavBtn
+            icon={<FileSignature size={15} />}
+            label="إدارة التعاقدات"
+            onClick={() => openContractManager()}
           />
         )}
       </div>

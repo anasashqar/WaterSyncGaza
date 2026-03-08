@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, ZoomControl } from 'react-leaflet'
 import { GAZA_BOUNDS } from '@/lib/constants/geography'
 import { useUIStore } from '@/stores/useUIStore'
 import { useDatabaseStore } from '@/stores/useDatabaseStore'
+import { useDataStore } from '@/stores/useDataStore'
 import { useMapStore } from '@/stores/useMapStore'
 import { MapSetup, MapClickHandler, StationsLayer, PointsLayer, RoutesLayer, ExclusionZonesLayer, GovernoratesLayer, NeighborhoodsLayer, StreetsLayer, BufferZoneLayer, SpatialAnalysisControls, SimulationLayer } from '@/components/map'
 import { AppToolbar } from '@/components/toolbar'
@@ -14,7 +15,7 @@ import { DriverFieldView } from '@/components/driver'
 import { LayerEditorPanel } from '@/components/editor'
 import { NotificationRulesEngine } from '@/services/NotificationRulesEngine'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { NGOSetupWizard } from '@/components/onboarding/NGOSetupWizard'
+import { NGOContractManager } from '@/components/onboarding/NGOContractManager'
 import { LoginScreen } from '@/components/auth/LoginScreen'
 
 /** Current full-screen view overlay (removed for router) */
@@ -37,9 +38,17 @@ function App() {
   const role = useAuthStore((s) => s.role)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const ngoSetupComplete = useAuthStore((s) => s.ngoSetupComplete)
+  const contractManagerOpen = useAuthStore((s) => s.contractManagerOpen)
+  const institutionId = useAuthStore((s) => s.institutionId)
+  const institutions = useDataStore((s) => s.institutions)
   const isAdmin = role === 'admin'
   const isNGO = role === 'ngo'
   const isDriver = role === 'driver'
+  
+  // Check if NGO has existing contracts
+  const ngoHasContracts = isNGO && institutionId ? institutions.some(i => i.id === institutionId) : false
+  // Show initial setup only when NGO has no contracts AND setup flag is not set
+  const showInitialSetup = isNGO && !ngoSetupComplete && !ngoHasContracts
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -180,9 +189,19 @@ function App() {
         <Route path="/driver" element={isDriver ? <DriverFieldView onClose={() => navigate('/')} /> : null} />
       </Routes>
 
-      {/* NGO Setup Wizard (first time only) */}
-      {isNGO && !ngoSetupComplete && (
-        <NGOSetupWizard onComplete={() => useAuthStore.getState().completeNGOSetup()} />
+      {/* NGO Contract Manager — Initial Setup (first time only, when no contracts exist) */}
+      {showInitialSetup && (
+        <NGOContractManager
+          isInitialSetup
+          onClose={() => useAuthStore.getState().completeNGOSetup()}
+        />
+      )}
+
+      {/* NGO Contract Manager — On-demand editing */}
+      {isNGO && contractManagerOpen && !showInitialSetup && (
+        <NGOContractManager
+          onClose={() => useAuthStore.getState().closeContractManager()}
+        />
       )}
     </div>
   )

@@ -29,13 +29,43 @@ export function PointsLayer() {
   const addNotification = useUIStore((s) => s.addNotification)
   const flyTo = useMapStore((s) => s.flyTo)
 
-  if (!visible) return null
-
   /** Get NGO display info by institution ID */
   const getNGOInfo = (ngoId: string | null) => {
     if (!ngoId) return null
     return institutions.find((n) => n.id === ngoId) ?? null
   }
+
+  /** Handle drag end — update coordinates + auto-detect location */
+  const handleDragEnd = useCallback((pointId: string, e: L.DragEndEvent) => {
+    const marker = e.target
+    const pos = marker.getLatLng()
+    
+    // التحقق من الموقع الجديد
+    const neigh = findNeighborhood(pos.lat, pos.lng)
+    
+    if (!neigh) {
+      addNotification('لا يمكن نقل النقطة خارج حدود الأحياء المعتمدة', 'warning')
+      // إعادة الرسم سيؤدي لعودة العلامة لموقعها المخزن في الـ store
+      // سنقوم بتحديث وهمي بسيط أو مجرد الاعتماد على أن الـ store لم يتغير
+      // للحصول على رد فعل فوري، يفضل إعادة تعيين الموقع في الماركر يدوياً
+      const original = points.find(p => p.id === pointId)
+      if (original) {
+        marker.setLatLng([original.lat, original.lng])
+      }
+      return
+    }
+
+    const gov = findGovernorate(pos.lat, pos.lng) || ''
+
+    updatePoint(pointId, {
+      lat: pos.lat,
+      lng: pos.lng,
+      governorate: gov,
+      neighborhood: neigh,
+    })
+  }, [updatePoint, findGovernorate, findNeighborhood, points, addNotification])
+
+  if (!visible) return null
 
   /** Handle reservation attempt with conflict detection */
   const handleReserve = (pointId: string) => {
@@ -87,36 +117,6 @@ export function PointsLayer() {
     releasePoint(pointId)
     addNotification('تم تحرير النقطة — أصبحت متاحة للجميع', 'info')
   }
-
-  /** Handle drag end — update coordinates + auto-detect location */
-  const handleDragEnd = useCallback((pointId: string, e: L.DragEndEvent) => {
-    const marker = e.target
-    const pos = marker.getLatLng()
-    
-    // التحقق من الموقع الجديد
-    const neigh = findNeighborhood(pos.lat, pos.lng)
-    
-    if (!neigh) {
-      addNotification('لا يمكن نقل النقطة خارج حدود الأحياء المعتمدة', 'warning')
-      // إعادة الرسم سيؤدي لعودة العلامة لموقعها المخزن في الـ store
-      // سنقوم بتحديث وهمي بسيط أو مجرد الاعتماد على أن الـ store لم يتغير
-      // للحصول على رد فعل فوري، يفضل إعادة تعيين الموقع في الماركر يدوياً
-      const original = points.find(p => p.id === pointId)
-      if (original) {
-        marker.setLatLng([original.lat, original.lng])
-      }
-      return
-    }
-
-    const gov = findGovernorate(pos.lat, pos.lng) || ''
-
-    updatePoint(pointId, {
-      lat: pos.lat,
-      lng: pos.lng,
-      governorate: gov,
-      neighborhood: neigh,
-    })
-  }, [updatePoint, findGovernorate, findNeighborhood, points, addNotification])
 
   return (
     <>
