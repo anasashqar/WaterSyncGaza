@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand'
 import type { DataState, SyncState } from './types'
 
-export const createSyncSlice: StateCreator<DataState, [], [], SyncState> = (set, get) => ({
+export const createSyncSlice: StateCreator<DataState, [], [], SyncState> = (set) => ({
   deliveries: [],
 
   
