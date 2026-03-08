@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { MapContainer, TileLayer, ZoomControl } from 'react-leaflet'
 import { GAZA_BOUNDS } from '@/lib/constants/geography'
 import { useUIStore } from '@/stores/useUIStore'
@@ -16,8 +17,8 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { NGOSetupWizard } from '@/components/onboarding/NGOSetupWizard'
 import { LoginScreen } from '@/components/auth/LoginScreen'
 
-/** Current full-screen view overlay */
-type AppView = 'map' | 'dashboard' | 'reports' | 'driver'
+/** Current full-screen view overlay (removed for router) */
+// type AppView = 'map' | 'dashboard' | 'reports' | 'driver'
 
 /**
  * WaterSync — نظام إدارة توزيع المياه الذكي
@@ -26,7 +27,8 @@ type AppView = 'map' | 'dashboard' | 'reports' | 'driver'
 function App() {
   const theme = useUIStore((s) => s.theme)
   const initDB = useDatabaseStore((s) => s.initialize)
-  const [view, setView] = useState<AppView>('map')
+  const navigate = useNavigate()
+  const location = useLocation()
   const [editorOpen, setEditorOpen] = useState(false)
   const [editorInitialTab, setEditorInitialTab] = useState<'tools' | 'stations' | 'points'>('tools')
   const baseMapVisible = useMapStore((s) => s.layerVisibility.baseMap)
@@ -66,12 +68,12 @@ function App() {
           case 'd':
             if (!isAdmin) break
             e.preventDefault()
-            setView((v) => (v === 'dashboard' ? 'map' : 'dashboard'))
+            navigate(location.pathname === '/dashboard' ? '/' : '/dashboard')
             break
           case 'r':
             if (!isAdmin || !e.shiftKey) break
             e.preventDefault()
-            setView((v) => (v === 'reports' ? 'map' : 'reports'))
+            navigate(location.pathname === '/reports' ? '/' : '/reports')
             break
            case 'e':
             if (!isAdmin) break
@@ -81,17 +83,19 @@ function App() {
             break
           case 'f':
             e.preventDefault()
-            if (isDriver) setView((v) => (v === 'driver' ? 'map' : 'driver'))
+            if (isDriver) {
+              navigate(location.pathname === '/driver' ? '/' : '/driver')
+            }
             break
         }
       }
       if (e.key === 'Escape') {
-        setView('map')
+        navigate('/')
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [editorOpen, isAdmin])
+  }, [editorOpen, isAdmin, isDriver, navigate, location.pathname])
 
 
 
@@ -104,10 +108,10 @@ function App() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
       {/* Row 1: App Header + Row 2: Toolbar */}
       <AppToolbar
-        onOpenDashboard={() => setView('dashboard')}
-        onOpenReports={() => setView('reports')}
+        onOpenDashboard={() => navigate('/dashboard')}
+        onOpenReports={() => navigate('/reports')}
         onOpenEditor={() => setEditorOpen(v => !v)}
-        onOpenDriver={() => setView('driver')}
+        onOpenDriver={() => navigate('/driver')}
       />
 
       {/* Main content: Map + Sidebar — calc(100vh - 56px header - 52px toolbar) */}
@@ -169,10 +173,12 @@ function App() {
       {/* Toast Notifications */}
       <ToastContainer />
 
-      {/* Full-screen Overlays */}
-      {isAdmin && view === 'dashboard' && <DashboardView onClose={() => setView('map')} />}
-      {(isAdmin || isNGO) && view === 'reports' && <ReportsView onClose={() => setView('map')} />}
-      {isDriver && view === 'driver' && <DriverFieldView onClose={() => setView('map')} />}
+      {/* Full-screen Overlays routed by React Router */}
+      <Routes>
+        <Route path="/dashboard" element={isAdmin ? <DashboardView onClose={() => navigate('/')} /> : null} />
+        <Route path="/reports" element={(isAdmin || isNGO) ? <ReportsView onClose={() => navigate('/')} /> : null} />
+        <Route path="/driver" element={isDriver ? <DriverFieldView onClose={() => navigate('/')} /> : null} />
+      </Routes>
 
       {/* NGO Setup Wizard (first time only) */}
       {isNGO && !ngoSetupComplete && (
