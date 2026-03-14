@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 
 // Path to the sibling project containing offline map tiles
-const tilesDir = path.resolve(__dirname, "../WaterSync_Latest/tiles");
+const tilesDir = path.resolve(__dirname, "../tiles/tiles");
 
 // https://vite.dev/config/
 export default defineConfig({
