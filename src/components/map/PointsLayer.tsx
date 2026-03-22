@@ -118,9 +118,15 @@ export function PointsLayer() {
     addNotification('تم تحرير النقطة — أصبحت متاحة للجميع', 'info')
   }
 
+  // NGO view: hide points reserved by other institutions
+  const isNGO = role === 'ngo'
+  const visiblePoints = isNGO && institutionId
+    ? points.filter(p => !p.reservedBy || p.reservedBy === institutionId)
+    : points
+
   return (
     <>
-      {points.map((point) => {
+      {visiblePoints.map((point) => {
         const shape = TYPES[point.type] || 'circle'
         const statusColor = getStatusColor(point.status)
         const ngoInfo = getNGOInfo(point.reservedBy)

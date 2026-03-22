@@ -3,9 +3,10 @@
  * العرض والمراقبة + البحث والفلترة
  * أزرار التحرير والحذف تُحال للمحرر (LayerEditorPanel)
  */
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useDataStore } from '@/stores/useDataStore'
 import { useMapStore } from '@/stores/useMapStore'
+import { useAuthStore } from '@/stores/useAuthStore'
 import { getStatusColor } from '@/lib/utils'
 import { TYPE_LABELS } from '@/lib/constants/colors'
 import { ChevronDown, ChevronRight, MapPin, Navigation, Search, Filter, Droplet } from 'lucide-react'
@@ -47,8 +48,20 @@ function SectionHeader({ title, icon: Icon, action }: { title: string, icon: any
 }
 
 export function PointsPanel() {
-  const points = useDataStore((s) => s.points)
+  const allPoints = useDataStore((s) => s.points)
   const map = useMapStore((s) => s.map)
+  const role = useAuthStore((s) => s.role)
+  const institutionId = useAuthStore((s) => s.institutionId)
+  const isNGO = role === 'ngo'
+
+  // NGO view: only show points reserved by or visited by this institution
+  const points = useMemo(() => {
+    if (!isNGO || !institutionId) return allPoints
+    return allPoints.filter(p =>
+      p.reservedBy === institutionId ||
+      (p.visitedByTrucks && p.visitedByTrucks.some(t => t.startsWith(institutionId)))
+    )
+  }, [allPoints, isNGO, institutionId])
 
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -95,7 +108,7 @@ export function PointsPanel() {
       </div>
 
       <SectionHeader 
-        title="نقاط التوزيع (الطلب)" 
+        title={isNGO ? 'نقاط التوزيع الخاصة بي' : 'نقاط التوزيع (الطلب)'} 
         icon={MapPin}
       />
 
