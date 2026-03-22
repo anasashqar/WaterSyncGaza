@@ -16,7 +16,7 @@ export interface RoutePoint {
  * Each path coordinate becomes a RoutePoint with a calculated timeOffset.
  * Stops are matched by proximity and include a dwell time.
  */
-export const generateTripRoute = (trip: Trip): RoutePoint[] => {
+const generateTripRoute = (trip: Trip): RoutePoint[] => {
   if (!trip || !trip.path || trip.path.length === 0) return [];
   
   const points: RoutePoint[] = [];

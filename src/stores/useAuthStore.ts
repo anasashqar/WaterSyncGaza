@@ -9,7 +9,7 @@ import { persist } from "zustand/middleware";
 export type UserRole = "admin" | "ngo" | "driver";
 
 /** Simulated NGO organization */
-export interface NGOOrganization {
+interface NGOOrganization {
   id: string;
   name: string;
   nameAr: string;
@@ -18,7 +18,7 @@ export interface NGOOrganization {
 }
 
 /** User notification preferences */
-export interface UserPreferences {
+interface UserPreferences {
   muteAll: boolean;
   receiveInApp: boolean;
   receivePush: boolean;
@@ -38,7 +38,7 @@ export interface User {
   institutionId: string | null;
 }
 
-export const DEMO_NGOS: NGOOrganization[] = [];
+
 
 // ============================================
 // Auth Store

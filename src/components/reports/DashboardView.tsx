@@ -17,8 +17,7 @@ import { useUIStore } from '@/stores/useUIStore'
 import { 
   Activity, MapPin, Truck, AlertTriangle, 
   CheckCircle2, ShieldAlert, BarChart2,
-  X, Clock, Navigation, LayoutDashboard, Database,
-  Lock, Shield, ArrowRight
+  X, Clock, Navigation, LayoutDashboard, Database
 } from 'lucide-react'
 
 ChartJS.register(
@@ -30,7 +29,7 @@ export function DashboardView({ onClose }: { onClose: () => void }) {
   const points = useDataStore((s) => s.points)
   const trips = useDataStore((s) => s.trips)
   const exclusionZones = useDataStore((s) => s.exclusionZones)
-  const deliveries = useDataStore((s) => s.deliveries)
+
   const theme = useUIStore((s) => s.theme)
   const isDark = theme === 'dark'
 
@@ -60,19 +59,7 @@ export function DashboardView({ onClose }: { onClose: () => void }) {
     }
   }, [stations, points, trips, exclusionZones])
 
-  // ──── Reservation Metrics (Plan 3) ────
-  const reservationMetrics = useMemo(() => {
-    const available = points.filter((p) => !p.reservedBy || p.reservationStatus === 'available').length
-    const reserved = points.filter((p) => p.reservationStatus === 'reserved').length
-    const inTransit = points.filter((p) => p.reservationStatus === 'in_transit').length
-    const delivered = points.filter((p) => p.reservationStatus === 'delivered').length
-    const verified = points.filter((p) => p.reservationStatus === 'verified').length
-    const completionRate = points.length > 0 ? ((verified / points.length) * 100) : 0
-    const recentDeliveries = [...deliveries]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 5)
-    return { available, reserved, inTransit, delivered, verified, completionRate, recentDeliveries }
-  }, [points, deliveries])
+
 
   const statusDoughnutData = useMemo(() => {
     return {
@@ -135,14 +122,6 @@ export function DashboardView({ onClose }: { onClose: () => void }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <LayoutDashboard size={22} className="opacity-90" />
           <span style={{ fontSize: '1.2rem', fontWeight: 700, letterSpacing: '0.5px' }}>لوحة التحكم والعمليات</span>
-          <div style={{ 
-            marginLeft: 16, padding: '4px 10px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 600,
-            background: metrics.systemHealth === 'excellent' ? 'rgba(16,185,129,0.2)' : metrics.systemHealth === 'good' ? 'rgba(245,158,11,0.2)' : 'rgba(239,68,68,0.2)',
-            color: metrics.systemHealth === 'excellent' ? '#34d399' : metrics.systemHealth === 'good' ? '#fbbf24' : '#f87171',
-            border: `1px solid ${metrics.systemHealth === 'excellent' ? 'rgba(16,185,129,0.4)' : metrics.systemHealth === 'good' ? 'rgba(245,158,11,0.4)' : 'rgba(239,68,68,0.4)'}`
-          }}>
-            {metrics.systemHealth === 'excellent' ? 'النظام مستقر' : metrics.systemHealth === 'good' ? 'توجد تحذيرات' : 'حالة حرجة!'}
-          </div>
         </div>
         <button onClick={onClose} style={{
           background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', 
@@ -157,22 +136,14 @@ export function DashboardView({ onClose }: { onClose: () => void }) {
       <div style={{ flex: 1, overflow: 'auto', padding: 32, display: 'flex', justifyContent: 'center' }}>
         <div style={{ width: '100%', maxWidth: 1000, display: 'flex', flexDirection: 'column', gap: 32 }}>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderBottom: '2px solid var(--glass-border)', paddingBottom: 16 }}>
-            <div style={{ background: 'var(--primary-soft)', padding: 10, borderRadius: 12, color: 'var(--primary)' }}>
-              <Activity size={28} />
-            </div>
-            <div>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0 }}>مؤشرات الأداء الرئيسية</h2>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>نظرة عامة على حالة المنظومة والعمليات الجارية</span>
-            </div>
-          </div>
+
 
           {/* TOP LEVEL METRICS */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-             <MiniCard label="نسبة التغطية الكلية" value={`${metrics.coverage.toFixed(1)}%`} icon={<CheckCircle2 size={24}/>} color={successColor} />
+             <MiniCard label="نسبة التغطية الكلية" value={`${metrics.coverage.toFixed(1)}%`} icon={<CheckCircle2 size={24}/>} color={successColor} valueColor={metrics.coverage === 0 ? 'var(--danger)' : metrics.coverage < 50 ? 'var(--warning)' : 'var(--success)'} />
              <MiniCard label="إجمالي الطلب" value={`${formatNumber(metrics.totalDemand)} L`} icon={<BarChart2 size={24}/>} color={primaryColor} />
              <MiniCard label="مسافة مقطوعة" value={`${formatNumber(metrics.totalDistance)} كم`} icon={<Navigation size={24}/>} color={primaryColor} />
-             <MiniCard label="مناطق استبعاد/حرجة" value={`${metrics.zones} / ${metrics.critical}`} icon={<ShieldAlert size={24}/>} color={dangerColor} />
+             <MiniCard label="مناطق استبعاد/حرجة" value={`${metrics.zones} / ${metrics.critical}`} icon={<ShieldAlert size={24}/>} color={dangerColor} valueColor={metrics.critical > 0 ? 'var(--danger)' : undefined} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24 }}>
@@ -197,11 +168,15 @@ export function DashboardView({ onClose }: { onClose: () => void }) {
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 16px 0' }}>
                   <Truck size={18} color="var(--primary)" /> تفاصيل الأسطول والحركة
                 </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <ListMetric label="إجمالي الشاحنات العاملة" value={metrics.totalTrucks} icon={<Truck size={16}/>} />
-                  <ListMetric label="رحلات التوزيع والمسارات" value={trips.length} icon={<Clock size={16}/>} />
-                  <ListMetric label="متوسط المسافة للرحلة المخططة" value={`${metrics.avgDistance.toFixed(2)} كم`} icon={<Navigation size={16}/>} />
-                </div>
+                {metrics.totalTrucks === 0 && trips.length === 0 ? (
+                  <EmptyState text="لم تُسجّل رحلات توزيع بعد" />
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <ListMetric label="إجمالي الشاحنات العاملة" value={metrics.totalTrucks} icon={<Truck size={16}/>} />
+                    <ListMetric label="رحلات التوزيع والمسارات" value={trips.length} icon={<Clock size={16}/>} />
+                    <ListMetric label="متوسط المسافة للرحلة المخططة" value={`${metrics.avgDistance.toFixed(2)} كم`} icon={<Navigation size={16}/>} />
+                  </div>
+                )}
               </div>
 
             </div>
@@ -227,7 +202,11 @@ export function DashboardView({ onClose }: { onClose: () => void }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {stations.map(st => {
+                        {[...stations].sort((a, b) => {
+                          const ratioA = a.dailyCapacity > 0 ? ((a.usedCapacity || 0) / a.dailyCapacity) : 0;
+                          const ratioB = b.dailyCapacity > 0 ? ((b.usedCapacity || 0) / b.dailyCapacity) : 0;
+                          return ratioB - ratioA;
+                        }).map(st => {
                           const usageRatio = st.dailyCapacity > 0 ? ((st.usedCapacity || 0) / st.dailyCapacity) * 100 : 0;
                           const indicatorColor = usageRatio > 90 ? 'var(--danger)' : usageRatio > 70 ? 'var(--warning)' : 'var(--success)';
                           return (
@@ -272,69 +251,7 @@ export function DashboardView({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          {/* ═══ RESERVATION & FIELD OPERATIONS (Plan 3) ═══ */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderBottom: '2px solid var(--glass-border)', paddingBottom: 16 }}>
-            <div style={{ background: 'rgba(16,185,129,0.1)', padding: 10, borderRadius: 12, color: 'var(--success)' }}>
-              <Shield size={28} />
-            </div>
-            <div>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0 }}>حالة الحجوزات والعمليات الميدانية</h2>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>متابعة دورة التسليم: حجز → توصيل → تأكيد</span>
-            </div>
-          </div>
 
-          {/* Reservation stat cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14 }}>
-            <MiniCard label="نقاط متاحة" value={reservationMetrics.available} icon={<MapPin size={22}/>} color="var(--text-muted)" />
-            <MiniCard label="محجوزة" value={reservationMetrics.reserved} icon={<Lock size={22}/>} color="#F59E0B" />
-            <MiniCard label="في الطريق" value={reservationMetrics.inTransit} icon={<Truck size={22}/>} color="#3B82F6" />
-            <MiniCard label="مُسلّمة" value={reservationMetrics.delivered} icon={<ArrowRight size={22}/>} color="#8B5CF6" />
-            <MiniCard label="مُؤكّدة ✅" value={reservationMetrics.verified} icon={<CheckCircle2 size={22}/>} color="var(--success)" />
-          </div>
-
-          {/* Recent deliveries table */}
-          <div style={{ background: 'var(--bg-card)', borderRadius: 16, border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
-            <h3 style={{ padding: '20px 24px 14px', fontSize: '1.05rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, margin: 0, borderBottom: '1px solid var(--glass-border)' }}>
-              <Clock size={18} color="var(--success)" /> آخر عمليات التسليم
-            </h3>
-            <div style={{ padding: 16 }}>
-              {reservationMetrics.recentDeliveries.length === 0 ? (
-                <EmptyState text="لا توجد عمليات تسليم مُسجّلة بعد" />
-              ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right', fontSize: '0.82rem' }}>
-                  <thead>
-                    <tr style={{ color: 'var(--text-muted)' }}>
-                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>النقطة</th>
-                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>المستلم</th>
-                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>الكمية</th>
-                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>الوقت</th>
-                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>الحالة</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reservationMetrics.recentDeliveries.map((d) => {
-                      const pt = points.find((p) => p.id === d.pointId)
-                      return (
-                        <tr key={d.id}>
-                          <td style={{ padding: '12px', fontWeight: 700, borderBottom: '1px solid var(--glass-border)' }}>{pt?.name || d.pointId}</td>
-                          <td style={{ padding: '12px', color: 'var(--text-muted)', borderBottom: '1px solid var(--glass-border)' }}>{d.receipt?.receiverName || '—'}</td>
-                          <td style={{ padding: '12px', fontFamily: 'monospace', borderBottom: '1px solid var(--glass-border)' }}>{d.liters.toLocaleString()} L</td>
-                          <td style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '0.75rem', borderBottom: '1px solid var(--glass-border)' }}>{d.unloadedAt ? new Date(d.unloadedAt).toLocaleTimeString('ar-EG') : '—'}</td>
-                          <td style={{ padding: '12px', borderBottom: '1px solid var(--glass-border)' }}>
-                            <span style={{
-                              padding: '3px 8px', borderRadius: 10, fontSize: '0.7rem', fontWeight: 700,
-                              background: d.status === 'verified' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-                              color: d.status === 'verified' ? '#10B981' : '#F59E0B',
-                            }}>{d.status === 'verified' ? 'مُؤكّد' : 'مُسلّم'}</span>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
 
         </div>
       </div>
@@ -344,7 +261,7 @@ export function DashboardView({ onClose }: { onClose: () => void }) {
 
 // ─── Shared UI Components ───
 
-function MiniCard({ label, value, icon, color }: any) {
+function MiniCard({ label, value, icon, color, valueColor }: any) {
   return (
     <div style={{
       background: 'var(--bg-card)', border: '1px solid var(--glass-border)',
@@ -359,7 +276,7 @@ function MiniCard({ label, value, icon, color }: any) {
         {icon}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text)', fontFamily: 'system-ui' }}>{value}</span>
+        <span style={{ fontSize: '1.4rem', fontWeight: 800, color: valueColor || 'var(--text)', fontFamily: 'system-ui' }}>{value}</span>
         <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>{label}</span>
       </div>
     </div>

@@ -18,12 +18,6 @@ export const STREETS_OFFSET = {
   lng: 0.00073,
 } as const
 
-/** Zero offset for other layers */
-export const NO_OFFSET = {
-  lat: 0,
-  lng: 0,
-} as const
-
 /** Governorate names by ID */
 export const GOVERNORATE_NAMES: Record<number, string> = {
   0: 'رفح',

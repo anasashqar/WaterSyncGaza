@@ -81,7 +81,7 @@ export interface Point {
 export type ReservationStatus = 'available' | 'reserved' | 'in_transit' | 'delivered' | 'verified'
 
 /** Delivery lifecycle states */
-export type DeliveryStatus = 'pending' | 'loaded' | 'in_transit' | 'unloaded' | 'verified' | 'cancelled'
+type DeliveryStatus = 'pending' | 'loaded' | 'in_transit' | 'unloaded' | 'verified' | 'cancelled'
 
 /** A single delivery record (field execution) */
 export interface DeliveryRecord {
@@ -117,7 +117,7 @@ export interface DeliveryRecord {
 }
 
 /** Receipt confirmation — signed on driver's device by the receiver */
-export interface ReceiptConfirmation {
+interface ReceiptConfirmation {
   /** Name of person who received the water */
   receiverName: string
   /** Actual liters confirmed by receiver */
@@ -181,7 +181,7 @@ export interface ExclusionZone {
 // ============================================
 
 /** Node in the routing graph */
-export interface GraphNode {
+interface GraphNode {
   lat: number
   lng: number
 }
@@ -272,23 +272,14 @@ export interface SearchState {
   selectedIndex: number
 }
 
-export interface SearchResults {
+interface SearchResults {
   stations: Station[]
   points: Point[]
   trips: Trip[]
   zones: ExclusionZone[]
 }
 
-// ============================================
-// Editor
-// ============================================
 
-/** Editor marker entry */
-export interface EditorMarkerEntry {
-  marker: L.Marker
-  data: Station | Point
-  type: 'station' | 'point'
-}
 
 /** Discovered POI from OSM */
 export interface DiscoveredPOI {

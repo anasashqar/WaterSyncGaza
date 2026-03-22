@@ -30,12 +30,6 @@ export const COLORS = {
   ],
 } as const
 
-/** Truck simulation colors */
-export const TRUCK_COLORS = [
-  '#2E86AB', '#00875A', '#D97706', '#C41E3A', '#8B5CF6',
-  '#14B8A6', '#EC4899', '#F59E0B', '#06B6D4', '#10B981',
-] as const
-
 /** Unified truck capacity (15,000L) */
 export const TRUCK_CAPACITY = 15_000
 
@@ -66,15 +60,6 @@ export const STATUS_LABELS: Record<string, string> = {
   warning: 'تحذير',
   critical: 'حرج',
 }
-
-/** Execution status types */
-export const EXEC_STATUS = {
-  planned: { name: 'مخطط', color: 'var(--color-primary-light)', icon: '—' },
-  inProgress: { name: 'قيد التنفيذ', color: 'var(--color-warning)', icon: '>>' },
-  completed: { name: 'مكتمل', color: 'var(--color-success)', icon: '✓' },
-  delayed: { name: 'متأخر', color: 'var(--color-danger)', icon: '!' },
-  cancelled: { name: 'ملغي', color: 'var(--text-muted)', icon: 'x' },
-} as const
 
 /** Reservation status labels and colors (Plan 3) */
 export const RESERVATION_STATUS = {
