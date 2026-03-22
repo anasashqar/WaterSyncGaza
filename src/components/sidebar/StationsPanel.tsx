@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useDataStore } from "@/stores/useDataStore";
 import { useMapStore } from "@/stores/useMapStore";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { ChevronDown, ChevronRight, Navigation, Droplet, Users, Factory, Truck, FileSignature, X, Check, Building2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Navigation, Droplet, Users, Factory, Truck } from 'lucide-react';
 
 function StatBox({ value, label, color }: { value: number | string; label: string; color: string }) {
   return (
@@ -46,12 +46,8 @@ function SectionHeader({ title, icon: Icon, action }: { title: string, icon: any
 
 export function StationsPanel() {
   const allStations = useDataStore((s) => s.stations);
-  const institutions = useDataStore((s) => s.institutions);
-  const addInstitution = useDataStore((s) => s.addInstitution);
-  const registeredNGOs = useAuthStore((s) => s.registeredNGOs);
   const role = useAuthStore((s) => s.role);
   const institutionId = useAuthStore((s) => s.institutionId);
-  const isAdmin = role === 'admin';
   const isNGO = role === 'ngo';
   const map = useMapStore((s) => s.map);
 
@@ -69,26 +65,6 @@ export function StationsPanel() {
   };
 
   const [expandedStation, setExpandedStation] = useState<string | null>(null);
-  const [contractingNGO, setContractingNGO] = useState<{ id: string; name: string; color: string } | null>(null);
-  const [contractStations, setContractStations] = useState<string[]>([]);
-  const [contractTrucks, setContractTrucks] = useState<Record<string, number>>({});
-
-  const handleAdminContract = () => {
-    if (!contractingNGO || contractStations.length === 0) return;
-    contractStations.forEach(stId => {
-      const trucksCount = contractTrucks[stId] || 1;
-      addInstitution({
-        id: contractingNGO.id,
-        name: contractingNGO.name,
-        stationIds: [stId],
-        trucks: trucksCount,
-        color: contractingNGO.color,
-      });
-    });
-    setContractingNGO(null);
-    setContractStations([]);
-    setContractTrucks({});
-  };
 
   const flyTo = (lat: number, lng: number) =>
     map?.flyTo([lat, lng], 15, { duration: 0.8 });
@@ -259,226 +235,7 @@ export function StationsPanel() {
         )}
       </div>
 
-      {/* ═══ Registered NGOs Section (Admin only) ═══ */}
-      {isAdmin && registeredNGOs.length > 0 && (
-        <>
-          <SectionHeader
-            title={`المؤسسات المسجلة (${registeredNGOs.length})`}
-            icon={Users}
-          />
-          <div style={{ padding: 8, background: 'var(--bg-elevated, #fff)', borderTop: '1px solid var(--border, #e2e8f0)' }}>
-            {registeredNGOs.map(ngo => {
-              const isContracted = institutions.some(inst => inst.id === ngo.id);
-              const inst = institutions.find(i => i.id === ngo.id);
-              return (
-                <div key={ngo.id} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '6px 10px', background: 'var(--bg-dark, #f8fafc)',
-                  border: '1px solid var(--border, #e2e8f0)', borderRadius: 6, marginBottom: 4,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: 3, background: ngo.color }} />
-                    <div>
-                      <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-main, #334155)' }}>
-                        {ngo.nameAr || ngo.name}
-                      </div>
-                      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted, #64748b)' }}>
-                        {isContracted
-                          ? `✅ متعاقدة — ${inst?.trucks || 0} شاحنة`
-                          : '⏳ لم يتم التعاقد بعد'
-                        }
-                      </div>
-                    </div>
-                  </div>
-                  {!isContracted && (
-                    <button
-                      onClick={() => {
-                        setContractingNGO({ id: ngo.id, name: ngo.nameAr || ngo.name, color: ngo.color });
-                        setContractStations([]);
-                        setContractTrucks({});
-                      }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 4,
-                        padding: '4px 10px', borderRadius: 6,
-                        background: 'var(--bg-elevated, #fff)', border: '1px solid var(--border, #cbd5e1)',
-                        color: 'var(--primary, #2563eb)', fontSize: '0.7rem', fontWeight: 700,
-                        cursor: 'pointer', fontFamily: 'inherit',
-                      }}
-                    >
-                      <FileSignature size={12} /> إبرام تعاقد
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </>
-      )}
 
-      {/* ═══ Admin Contracting Modal ═══ */}
-      {contractingNGO && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 10000,
-          background: 'rgba(15,23,42,0.7)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          direction: 'rtl',
-        }}>
-          <div style={{
-            background: 'var(--bg-card)', borderRadius: 20, width: 500,
-            maxHeight: '80vh', overflow: 'hidden',
-            border: '1px solid var(--glass-border)',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-            display: 'flex', flexDirection: 'column',
-          }}>
-            {/* Modal Header */}
-            <div style={{
-              padding: '20px 28px', borderBottom: '1px solid var(--border, #e2e8f0)',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              background: `linear-gradient(135deg, ${contractingNGO.color}15, transparent)`,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <FileSignature size={20} color={contractingNGO.color} />
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: '1rem' }}>تعاقد: {contractingNGO.name}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>تخصيص المحطات والشاحنات</div>
-                </div>
-              </div>
-              <button
-                onClick={() => setContractingNGO(null)}
-                style={{
-                  background: 'transparent', border: '1px solid var(--border)',
-                  color: 'var(--text-muted)', cursor: 'pointer', padding: 6, borderRadius: 8,
-                  display: 'flex', alignItems: 'center',
-                }}
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div style={{ padding: '20px 28px', flex: 1, overflowY: 'auto' }}>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 16 }}>
-                اختر المحطات التي ستتعاقد معها هذه المؤسسة:
-              </div>
-
-              {stations.length === 0 ? (
-                <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
-                  لا توجد محطات متاحة
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {stations.map(st => {
-                    const isSelected = contractStations.includes(st.id);
-                    return (
-                      <div key={st.id}>
-                        <button
-                          onClick={() => {
-                            setContractStations(prev =>
-                              prev.includes(st.id) ? prev.filter(id => id !== st.id) : [...prev, st.id]
-                            );
-                            if (!contractTrucks[st.id]) {
-                              setContractTrucks(prev => ({ ...prev, [st.id]: 1 }));
-                            }
-                          }}
-                          style={{
-                            width: '100%', textAlign: 'right',
-                            display: 'flex', alignItems: 'center', gap: 12,
-                            padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
-                            background: isSelected ? `${contractingNGO.color}12` : 'var(--bg-dark)',
-                            border: isSelected ? `2px solid ${contractingNGO.color}` : '2px solid var(--glass-border)',
-                            color: 'var(--text)', fontFamily: 'inherit',
-                            transition: 'all 0.2s',
-                          }}
-                        >
-                          <Building2 size={18} color={isSelected ? contractingNGO.color : 'var(--text-muted)'} />
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{st.name}</div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                              {st.governorate} — السعة: {st.remainingCapacity.toLocaleString()} لتر
-                            </div>
-                          </div>
-                          <div style={{
-                            width: 22, height: 22, borderRadius: 6,
-                            border: `2px solid ${isSelected ? contractingNGO.color : 'var(--text-muted)'}`,
-                            background: isSelected ? contractingNGO.color : 'transparent',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          }}>
-                            {isSelected && <Check size={14} color="#fff" strokeWidth={3} />}
-                          </div>
-                        </button>
-                        {isSelected && (
-                          <div style={{
-                            display: 'flex', alignItems: 'center', gap: 10,
-                            padding: '8px 14px', marginTop: 4,
-                            background: 'var(--bg-elevated)', borderRadius: 8,
-                            border: '1px solid var(--glass-border)',
-                          }}>
-                            <Truck size={14} color={contractingNGO.color} />
-                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>عدد الشاحنات:</span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <button
-                                onClick={() => setContractTrucks(p => ({ ...p, [st.id]: Math.max(1, (p[st.id] || 1) - 1) }))}
-                                style={{
-                                  width: 28, height: 28, borderRadius: 6, fontSize: '1rem', fontWeight: 800,
-                                  background: 'var(--bg-dark)', border: 'none', color: 'var(--text)', cursor: 'pointer',
-                                }}
-                              >−</button>
-                              <span style={{ fontSize: '1rem', fontWeight: 900, width: 24, textAlign: 'center' }}>
-                                {contractTrucks[st.id] || 1}
-                              </span>
-                              <button
-                                onClick={() => setContractTrucks(p => ({ ...p, [st.id]: (p[st.id] || 1) + 1 }))}
-                                style={{
-                                  width: 28, height: 28, borderRadius: 6, fontSize: '1rem', fontWeight: 800,
-                                  background: 'var(--bg-dark)', border: 'none', color: 'var(--text)', cursor: 'pointer',
-                                }}
-                              >+</button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div style={{
-              padding: '16px 28px', borderTop: '1px solid var(--border, #e2e8f0)',
-              display: 'flex', gap: 12,
-            }}>
-              <button
-                onClick={() => setContractingNGO(null)}
-                style={{
-                  flex: 1, padding: '12px', borderRadius: 10,
-                  background: 'var(--bg-dark)', border: '1px solid var(--glass-border)',
-                  color: 'var(--text)', fontWeight: 600, fontSize: '0.85rem',
-                  cursor: 'pointer', fontFamily: 'inherit',
-                }}
-              >
-                إلغاء
-              </button>
-              <button
-                onClick={handleAdminContract}
-                disabled={contractStations.length === 0}
-                style={{
-                  flex: 2, padding: '12px', borderRadius: 10,
-                  background: contractStations.length > 0 ? contractingNGO.color : 'var(--bg-dark)',
-                  border: 'none', color: '#fff',
-                  fontWeight: 800, fontSize: '0.9rem',
-                  cursor: contractStations.length > 0 ? 'pointer' : 'not-allowed',
-                  opacity: contractStations.length > 0 ? 1 : 0.4,
-                  fontFamily: 'inherit',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                }}
-              >
-                <Check size={18} strokeWidth={3} /> تأكيد التعاقد
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );
