@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { DEMO_NGOS } from '@/lib/demoAccounts'
 import { Droplet, Lock, User, LogIn, ShieldCheck, Truck, Building2, UserPlus, Phone, ArrowRight } from 'lucide-react'
 
 type AuthMode = 'login' | 'register_choice' | 'register_ngo' | 'register_driver'
@@ -63,6 +64,7 @@ export function LoginScreen() {
 // ----------------------------------------------------------------------
 function LoginForm({ onGoRegister }: { onGoRegister: () => void }) {
   const login = useAuthStore((s) => s.login)
+  const quickLogin = useAuthStore((s) => s.quickLogin)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -94,6 +96,59 @@ function LoginForm({ onGoRegister }: { onGoRegister: () => void }) {
         <button onClick={onGoRegister} style={{ background:'none', border:'none', color:'#0284c7', fontWeight:700, cursor:'pointer', fontSize:'0.9rem', fontFamily:'inherit' }}>
           انشئ حساباً الآن
         </button>
+      </div>
+
+      {/* Quick Demo Access */}
+      <div style={{
+        marginTop: 24, paddingTop: 20,
+        borderTop: '1px solid #e2e8f0',
+      }}>
+        <p style={{
+          textAlign: 'center', color: '#94a3b8',
+          fontSize: '0.78rem', fontWeight: 600, margin: '0 0 12px 0',
+          letterSpacing: '0.02em',
+        }}>
+          دخول سريع للعرض
+        </p>
+
+        {/* Admin */}
+        <QuickAccessBtn
+          label="مدير النظام"
+          icon={<ShieldCheck size={16} />}
+          color="#6366f1"
+          onClick={() => quickLogin('admin')}
+          full
+        />
+
+        {/* NGOs row */}
+        <p style={{
+          textAlign: 'center', color: '#94a3b8',
+          fontSize: '0.72rem', fontWeight: 600, margin: '10px 0 6px 0',
+        }}>
+          دخول كمؤسسة منسقة
+        </p>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {DEMO_NGOS.map(ngo => (
+            <QuickAccessBtn
+              key={ngo.id}
+              label={ngo.org.nameAr}
+              icon={<span style={{ fontSize: '1rem', lineHeight: 1 }}>{ngo.org.logo}</span>}
+              color={ngo.org.color}
+              onClick={() => quickLogin('ngo', ngo.id)}
+            />
+          ))}
+        </div>
+
+        {/* Driver */}
+        <div style={{ marginTop: 6 }}>
+          <QuickAccessBtn
+            label="سائق ميداني"
+            icon={<Truck size={16} />}
+            color="#22c55e"
+            onClick={() => quickLogin('driver')}
+            full
+          />
+        </div>
       </div>
     </>
   )
@@ -305,4 +360,41 @@ const iconBoxStyle = (bg: string, color: string): React.CSSProperties => ({
 const backButtonStyle: React.CSSProperties = {
   background: 'transparent', border: 'none', color: '#64748b', fontWeight: 700,
   padding: 10, cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.9rem'
+}
+
+// ----------------------------------------------------------------------
+// QUICK ACCESS BUTTON
+// ----------------------------------------------------------------------
+function QuickAccessBtn({ label, icon, color, onClick, full }: {
+  label: string; icon: React.ReactNode; color: string; onClick: () => void; full?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        ...(full ? { width: '100%' } : { flex: 1 }),
+        padding: full ? '8px 12px' : '10px 8px',
+        borderRadius: 10,
+        background: '#f8fafc', border: '2px solid #e2e8f0',
+        cursor: 'pointer', fontFamily: 'inherit',
+        display: 'flex',
+        flexDirection: full ? 'row' : 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: full ? 8 : 6,
+        transition: 'all 0.2s',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.borderColor = color
+        e.currentTarget.style.background = color + '0a'
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.borderColor = '#e2e8f0'
+        e.currentTarget.style.background = '#f8fafc'
+      }}
+    >
+      <div style={{ color, display: 'flex' }}>{icon}</div>
+      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155' }}>{label}</span>
+    </button>
+  )
 }

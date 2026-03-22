@@ -1,5 +1,10 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import {
+  DEMO_NGOS,
+  DEMO_ADMIN_CREDENTIALS,
+  DEMO_DRIVER,
+} from "@/lib/demoAccounts";
 
 // ============================================
 // Role & Organization Types
@@ -63,6 +68,7 @@ interface AuthState {
 
   // Actions
   login: (username: string, password?: string) => boolean;
+  quickLogin: (role: UserRole, demoNgoId?: string) => boolean;
   logout: () => void;
 
   /** Register a new NGO User (Admin/Coordinator) */
@@ -143,6 +149,55 @@ export const useAuthStore = create<AuthState>()(
           return true;
         }
         return false;
+      },
+
+      quickLogin: (role, demoNgoId) => {
+        const state = get();
+
+        // Seed all demo data if not present yet (self-healing for persisted stores)
+        const hasDemoData = state.registeredUsers.some(
+          (u) => u.id === "demo-unrwa-user",
+        );
+        if (!hasDemoData) {
+          const allDemoUsers = [
+            ...DEMO_NGOS.map((n) => n.user),
+            DEMO_DRIVER.user,
+          ].filter(
+            (du) =>
+              !state.registeredUsers.some((u) => u.username === du.username),
+          );
+          const allDemoNGOs = DEMO_NGOS.map((n) => n.org).filter(
+            (org) => !state.registeredNGOs.some((n) => n.id === org.id),
+          );
+          set({
+            registeredUsers: [...state.registeredUsers, ...allDemoUsers],
+            registeredNGOs: [...state.registeredNGOs, ...allDemoNGOs],
+          });
+        }
+
+        // Determine credentials based on role
+        let credentials: { username: string; password: string };
+        if (role === "admin") {
+          credentials = DEMO_ADMIN_CREDENTIALS;
+        } else if (role === "ngo") {
+          const ngo =
+            DEMO_NGOS.find((n) => n.id === demoNgoId) || DEMO_NGOS[0];
+          credentials = {
+            username: ngo.user.username,
+            password: ngo.user.password,
+          };
+        } else {
+          credentials = {
+            username: DEMO_DRIVER.user.username,
+            password: DEMO_DRIVER.user.password,
+          };
+        }
+
+        const success = get().login(credentials.username, credentials.password);
+        if (success && role === "ngo") {
+          set({ ngoSetupComplete: true });
+        }
+        return success;
       },
 
       logout: () => {

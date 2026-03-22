@@ -45,13 +45,28 @@ function SectionHeader({ title, icon: Icon, action }: { title: string, icon: any
 }
 
 export function StationsPanel() {
-  const stations = useDataStore((s) => s.stations);
+  const allStations = useDataStore((s) => s.stations);
   const institutions = useDataStore((s) => s.institutions);
   const addInstitution = useDataStore((s) => s.addInstitution);
   const registeredNGOs = useAuthStore((s) => s.registeredNGOs);
   const role = useAuthStore((s) => s.role);
+  const institutionId = useAuthStore((s) => s.institutionId);
   const isAdmin = role === 'admin';
+  const isNGO = role === 'ngo';
   const map = useMapStore((s) => s.map);
+
+  // NGO view: only show stations where this NGO has contracts
+  const stations = isNGO && institutionId
+    ? allStations.filter(st => st.institutions.some(inst => inst.id === institutionId))
+    : allStations;
+
+  // For NGO view: filter institutions within each station to only show own
+  const getVisibleInstitutions = (stationInstitutions: any[]) => {
+    if (isNGO && institutionId) {
+      return stationInstitutions.filter((inst: any) => inst.id === institutionId);
+    }
+    return stationInstitutions;
+  };
 
   const [expandedStation, setExpandedStation] = useState<string | null>(null);
   const [contractingNGO, setContractingNGO] = useState<{ id: string; name: string; color: string } | null>(null);
@@ -91,8 +106,8 @@ export function StationsPanel() {
       {/* 4-Stat Row */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border, #e2e8f0)' }}>
         <StatBox value={stations.length} label="المحطات" color="var(--primary, #2563eb)" />
-        <StatBox value={stations.reduce((s, st) => s + st.trucks, 0)} label="الشاحنات" color="var(--accent, #8b5cf6)" />
-        <StatBox value={stations.reduce((s, st) => s + st.institutions.length, 0)} label="المؤسسات" color="var(--success, #10b981)" />
+        <StatBox value={stations.reduce((s, st) => s + (isNGO && institutionId ? getVisibleInstitutions(st.institutions).reduce((sum: number, i: any) => sum + i.trucks, 0) : st.trucks), 0)} label="الشاحنات" color="var(--accent, #8b5cf6)" />
+        <StatBox value={isNGO ? stations.length : stations.reduce((s, st) => s + st.institutions.length, 0)} label={isNGO ? 'محطاتي' : 'المؤسسات'} color="var(--success, #10b981)" />
         <div style={{ flex: 1 }}>
           <StatBox value={stations.reduce((s, st) => s + (st.dailyCapacity/1000), 0).toFixed(0) + 'K'} label="السعة (لتر)" color="var(--info, #0ea5e9)" />
         </div>
@@ -163,7 +178,10 @@ export function StationsPanel() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.7rem', color: 'var(--text-muted, #64748b)', marginTop: 2 }}>
                        <span style={{ display: 'flex', alignItems: 'center', gap: 2 }} title="السعة الإجمالية"><Droplet size={10} color="var(--info, #0ea5e9)"/> {station.dailyCapacity.toLocaleString()}</span>
                        <span>•</span>
-                       <span style={{ display: 'flex', alignItems: 'center', gap: 2 }} title="الشاحنات والمؤسسات"><Truck size={10}/> {station.trucks} ش ({station.institutions.length} م)</span>
+                       <span style={{ display: 'flex', alignItems: 'center', gap: 2 }} title="الشاحنات">
+                         <Truck size={10}/> {isNGO && institutionId ? getVisibleInstitutions(station.institutions).reduce((s: number, i: any) => s + i.trucks, 0) : station.trucks} ش
+                         {!isNGO && <> ({station.institutions.length} م)</>}
+                       </span>
                        <span>•</span>
                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{station.governorate || 'غير محدد'}</span>
                     </div>
@@ -214,10 +232,10 @@ export function StationsPanel() {
                         borderBottom: '1px solid var(--border, #e2e8f0)', paddingBottom: 4, marginBottom: 8,
                         display: 'flex', alignItems: 'center', gap: 6
                     }}>
-                      <Users size={12} /> المؤسسات الداعمة ({station.institutions.length})
+                      <Users size={12} /> {isNGO ? 'تعاقداتي' : `المؤسسات الداعمة (${station.institutions.length})`}
                     </div>
 
-                    {station.institutions.map(inst => (
+                    {getVisibleInstitutions(station.institutions).map((inst: any) => (
                       <div key={inst.id} style={{ 
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                         padding: '4px 8px', background: 'var(--bg-elevated, #fff)', 

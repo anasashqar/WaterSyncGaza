@@ -17,6 +17,7 @@ import { NotificationRulesEngine } from '@/services/NotificationRulesEngine'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { NGOContractManager } from '@/components/onboarding/NGOContractManager'
 import { LoginScreen } from '@/components/auth/LoginScreen'
+import { isDemoNGO, getDemoNGO, DEMO_NGOS } from '@/lib/demoAccounts'
 
 /** Current full-screen view overlay (removed for router) */
 // type AppView = 'map' | 'dashboard' | 'reports' | 'driver'
@@ -41,6 +42,7 @@ function App() {
   const contractManagerOpen = useAuthStore((s) => s.contractManagerOpen)
   const institutionId = useAuthStore((s) => s.institutionId)
   const institutions = useDataStore((s) => s.institutions)
+  const stationsLoaded = useDataStore((s) => s.stations.length > 0)
   const isAdmin = role === 'admin'
   const isNGO = role === 'ngo'
   const isDriver = role === 'driver'
@@ -66,6 +68,34 @@ function App() {
       NotificationRulesEngine.stop()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ──── Seed demo NGO institution data after stations load ────
+  useEffect(() => {
+    if (role !== 'ngo' || !institutionId || !isDemoNGO(institutionId) || !stationsLoaded) return
+
+    const { stations, institutions: currentInsts, addInstitution } = useDataStore.getState()
+    if (currentInsts.some(i => i.id === institutionId)) return
+
+    const ngoConfig = getDemoNGO(institutionId)
+    if (!ngoConfig) return
+
+    // Distribute stations: each demo NGO gets a different slice
+    const ngoIndex = DEMO_NGOS.findIndex(n => n.id === institutionId)
+    const perNgo = Math.max(1, Math.floor(stations.length / DEMO_NGOS.length))
+    const start = ngoIndex * perNgo
+    const allocated = stations.slice(start, start + Math.min(2, perNgo))
+    const ngoStations = allocated.length > 0 ? allocated : [stations[0]]
+
+    ngoStations.forEach(st => {
+      addInstitution({
+        id: ngoConfig.id,
+        name: ngoConfig.org.nameAr,
+        trucks: 2,
+        color: ngoConfig.org.color,
+        stationIds: [st.id],
+      })
+    })
+  }, [role, institutionId, stationsLoaded])
 
   // ──── Keyboard Shortcuts (role-gated) ────
   useEffect(() => {

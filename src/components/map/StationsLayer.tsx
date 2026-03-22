@@ -82,14 +82,18 @@ export function StationsLayer() {
                 ⌖ {station.governorate || 'غير محدد'} - {station.neighborhood || 'غير محدد'}
               </div>
               <div style={{ fontSize: '0.8rem', marginBottom: 2 }}>
-                ▸ {station.trucks || 0} شاحنة
+                ▸ {isNGO && institutionId 
+                  ? `${station.institutions.find((i: any) => i.id === institutionId)?.trucks || 0} شاحنة (تعاقدي)`
+                  : `${station.trucks || 0} شاحنة`}
               </div>
               <div style={{ fontSize: '0.8rem', marginBottom: 2 }}>
                 ▸ السعة: {(station.dailyCapacity || 0).toLocaleString()} لتر
               </div>
-              <div style={{ fontSize: '0.8rem' }}>
-                ▸ المؤسسات: {station.institutions?.length || 0}
-              </div>
+              {!isNGO && (
+                <div style={{ fontSize: '0.8rem' }}>
+                  ▸ المؤسسات: {station.institutions?.length || 0}
+                </div>
+              )}
               
               {isNGO && (
                 <div style={{ marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>

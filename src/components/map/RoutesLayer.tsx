@@ -8,10 +8,18 @@ import { useDataStore } from '@/stores/useDataStore'
 import { useMapStore } from '@/stores/useMapStore'
 
 export function RoutesLayer() {
-  const trips = useDataStore((s) => s.trips)
+  const allTrips = useDataStore((s) => s.trips)
   const visible = useMapStore((s) => s.layerVisibility.routes)
+  const activeNGOFilter = useDataStore((s) => s.activeNGOFilter)
 
-  if (!visible || trips.length === 0) return null
+  if (!visible || allTrips.length === 0) return null
+
+  // In NGO view: only show this institution's routes, hide others
+  const trips = activeNGOFilter
+    ? allTrips.filter((t: any) => t.institution?.id === activeNGOFilter)
+    : allTrips
+
+  if (trips.length === 0) return null
 
   return (
     <>
