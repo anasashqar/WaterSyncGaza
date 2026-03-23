@@ -3,6 +3,7 @@
  * شريط جانبي: شريط تنقل عمودي + محتوى اللوحة
  */
 import { useUIStore } from '@/stores/useUIStore'
+import { useAuthStore } from '@/stores/useAuthStore'
 import { SupplyDemandPanel } from './SupplyDemandPanel'
 import { TripsPanel } from './TripsPanel'
 import { ConstraintsPanel } from './ConstraintsPanel'
@@ -10,21 +11,22 @@ import type { SidebarPanel } from '@/types'
 
 import { MapPin, Truck, Settings } from 'lucide-react'
 
-const NAV_ITEMS: { key: SidebarPanel; icon: React.ReactNode; label: string }[] = [
-  { key: 'supply', icon: <MapPin size={22} />, label: 'المواقع' },
+const NAV_ITEMS: { key: SidebarPanel; icon: React.ReactNode; label: string; roles?: string[] }[] = [
+  { key: 'supply', icon: <MapPin size={22} />, label: 'المواقع', roles: ['admin', 'ngo'] },
   { key: 'trips', icon: <Truck size={22} />, label: 'الرحلات' },
-  { key: 'constraints', icon: <Settings size={22} />, label: 'القيود' },
+  { key: 'constraints', icon: <Settings size={22} />, label: 'القيود', roles: ['admin', 'ngo'] },
 ]
 
 export function Sidebar() {
   const activePanel = useUIStore((s) => s.activePanel)
   const setActivePanel = useUIStore((s) => s.setActivePanel)
   const sidebarOpen = useUIStore((s) => s.sidebarOpen)
+  const role = useAuthStore((s) => s.role)
 
   if (!sidebarOpen) return null
 
-  // All roles see all tabs; edit actions inside panels are admin-gated
-  const visibleItems = NAV_ITEMS
+  // Filter tabs by role — driver only sees 'trips'
+  const visibleItems = NAV_ITEMS.filter(item => !item.roles || item.roles.includes(role))
 
   return (
     <aside style={{

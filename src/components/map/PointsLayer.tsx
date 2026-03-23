@@ -119,10 +119,14 @@ export function PointsLayer() {
   }
 
   // NGO view: hide points reserved by other institutions
+  // Driver view: show only points reserved by their institution
   const isNGO = role === 'ngo'
-  const visiblePoints = isNGO && institutionId
-    ? points.filter(p => !p.reservedBy || p.reservedBy === institutionId)
-    : points
+  const isDriverRole = role === 'driver'
+  const visiblePoints = isDriverRole && institutionId
+    ? points.filter(p => p.reservedBy === institutionId)
+    : isNGO && institutionId
+      ? points.filter(p => !p.reservedBy || p.reservedBy === institutionId)
+      : points
 
   return (
     <>

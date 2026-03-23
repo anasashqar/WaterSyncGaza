@@ -29,14 +29,12 @@ interface ToolbarProps {
   onOpenDashboard?: () => void;
   onOpenReports?: () => void;
   onOpenEditor?: () => void;
-  onOpenDriver?: () => void;
 }
 
 export function AppToolbar({
   onOpenDashboard,
   onOpenReports,
   onOpenEditor,
-  onOpenDriver,
 }: ToolbarProps) {
   const theme = useUIStore((s) => s.theme);
   const toggleTheme = useUIStore((s) => s.toggleTheme);
@@ -230,13 +228,7 @@ export function AppToolbar({
             onClick={() => onOpenReports?.()}
           />
         )}
-        {isDriver && (
-          <NavBtn
-            icon={<Truck size={15} />}
-            label="الميدان"
-            onClick={() => onOpenDriver?.()}
-          />
-        )}
+
         {isNGO && (
           <NavBtn
             icon={<FileSignature size={15} />}

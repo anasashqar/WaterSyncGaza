@@ -11,7 +11,7 @@ import { AppToolbar } from '@/components/toolbar'
 import { Sidebar } from '@/components/sidebar'
 import { ToastContainer, SimulationPanel } from '@/components/ui'
 import { DashboardView, ReportsView } from '@/components/reports'
-import { DriverFieldView } from '@/components/driver'
+
 import { LayerEditorPanel } from '@/components/editor'
 import { NotificationRulesEngine } from '@/services/NotificationRulesEngine'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -51,6 +51,16 @@ function App() {
   const ngoHasContracts = isNGO && institutionId ? institutions.some(i => i.id === institutionId) : false
   // Show initial setup only when NGO has no contracts AND setup flag is not set
   const showInitialSetup = isNGO && !ngoSetupComplete && !ngoHasContracts
+
+  // Driver: set activeNGOFilter for block coloring + ensure sidebar is open
+  useEffect(() => {
+    if (!isAuthenticated || !isDriver || !institutionId) return
+
+    // Set NGO filter so NeighborhoodsLayer colors blocks for this institution
+    useDataStore.getState()._setActiveNGOFilter(institutionId)
+    // Ensure sidebar is open and on trips tab (setActivePanel auto-opens sidebar)
+    useUIStore.getState().setActivePanel('trips')
+  }, [isAuthenticated, isDriver, institutionId])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -120,12 +130,7 @@ function App() {
             setEditorOpen(v => !v)
             if (!editorOpen) setEditorInitialTab('tools')
             break
-          case 'f':
-            e.preventDefault()
-            if (isDriver) {
-              navigate(location.pathname === '/driver' ? '/' : '/driver')
-            }
-            break
+
         }
       }
       if (e.key === 'Escape') {
@@ -150,7 +155,6 @@ function App() {
         onOpenDashboard={() => navigate('/dashboard')}
         onOpenReports={() => navigate('/reports')}
         onOpenEditor={() => setEditorOpen(v => !v)}
-        onOpenDriver={() => navigate('/driver')}
       />
 
       {/* Main content: Map + Sidebar — calc(100vh - 56px header - 52px toolbar) */}
@@ -216,7 +220,7 @@ function App() {
       <Routes>
         <Route path="/dashboard" element={isAdmin ? <DashboardView onClose={() => navigate('/')} /> : null} />
         <Route path="/reports" element={(isAdmin || isNGO) ? <ReportsView onClose={() => navigate('/')} /> : null} />
-        <Route path="/driver" element={isDriver ? <DriverFieldView onClose={() => navigate('/')} /> : null} />
+
       </Routes>
 
       {/* NGO Contract Manager — Initial Setup (first time only, when no contracts exist) */}
