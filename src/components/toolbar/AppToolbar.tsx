@@ -21,7 +21,6 @@ import {
   AlertTriangle,
   X,
   Droplets,
-  Truck,
   FileSignature,
 } from "lucide-react";
 
