@@ -14,11 +14,298 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Arabic:wght@300;400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Arabic:wght@300;400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
+
+    <!-- ═══════════════════════════════════════════
+         Loading Screen Styles (inline for instant render)
+         ═══════════════════════════════════════════ -->
+    <style>
+      /* ---------- Base ---------- */
+      #splash-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #0f172a;
+        font-family: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', sans-serif;
+        direction: rtl;
+        overflow: hidden;
+        transition: opacity 0.6s ease, visibility 0.6s ease;
+      }
+      #splash-screen.splash-hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+
+      /* ---------- Animated background ---------- */
+      #splash-screen::before {
+        content: '';
+        position: absolute;
+        width: 600px;
+        height: 600px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%);
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        animation: splashGlowPulse 4s ease-in-out infinite;
+      }
+      #splash-screen::after {
+        content: '';
+        position: absolute;
+        width: 400px;
+        height: 400px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(34,211,238,0.08) 0%, transparent 70%);
+        top: 40%;
+        left: 60%;
+        transform: translate(-50%, -50%);
+        animation: splashGlowPulse 5s ease-in-out 1s infinite;
+      }
+
+      /* ---------- Logo container ---------- */
+      .splash-logo-wrap {
+        position: relative;
+        width: 110px;
+        height: 110px;
+        margin-bottom: 28px;
+        animation: splashLogoEntry 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        opacity: 0;
+      }
+      .splash-logo-wrap img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        filter: drop-shadow(0 0 30px rgba(59,130,246,0.35));
+      }
+
+      /* Ring around logo */
+      .splash-ring {
+        position: absolute;
+        inset: -14px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        border-top-color: #3b82f6;
+        border-right-color: rgba(34,211,238,0.5);
+        animation: splashRingSpin 2.5s linear infinite;
+      }
+      .splash-ring-outer {
+        position: absolute;
+        inset: -24px;
+        border-radius: 50%;
+        border: 1px solid transparent;
+        border-bottom-color: rgba(34,211,238,0.3);
+        border-left-color: rgba(59,130,246,0.2);
+        animation: splashRingSpin 4s linear infinite reverse;
+      }
+
+      /* ---------- Title ---------- */
+      .splash-title {
+        font-size: 2rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #60a5fa 0%, #22d3ee 50%, #3b82f6 100%);
+        background-size: 200% 200%;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        animation: splashTitleEntry 1s cubic-bezier(0.22, 1, 0.36, 1) 0.2s forwards, splashGradientShift 4s ease infinite;
+        opacity: 0;
+        margin-bottom: 6px;
+        letter-spacing: -0.5px;
+      }
+      .splash-subtitle {
+        font-size: 0.9rem;
+        font-weight: 400;
+        color: #94a3b8;
+        animation: splashTitleEntry 1s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
+        opacity: 0;
+        margin-bottom: 40px;
+      }
+
+      /* ---------- Progress bar ---------- */
+      .splash-progress-track {
+        width: 260px;
+        height: 3px;
+        background: rgba(148,163,184,0.12);
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 24px;
+        animation: splashFadeUp 0.8s ease 0.6s forwards;
+        opacity: 0;
+      }
+      .splash-progress-bar {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #3b82f6, #22d3ee);
+        border-radius: 4px;
+        animation: splashProgress 12s ease-out forwards;
+      }
+
+      /* ---------- Dynamic status text ---------- */
+      .splash-status {
+        font-size: 0.82rem;
+        color: #64748b;
+        height: 22px;
+        overflow: hidden;
+        animation: splashFadeUp 0.8s ease 0.8s forwards;
+        opacity: 0;
+      }
+      .splash-status-text {
+        display: block;
+        animation: splashTextCycle 25s ease-in-out infinite;
+        text-align: center;
+      }
+
+      /* ---------- Water ripple dots ---------- */
+      .splash-dots {
+        display: flex;
+        gap: 6px;
+        margin-top: 20px;
+        animation: splashFadeUp 0.8s ease 1s forwards;
+        opacity: 0;
+      }
+      .splash-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: #3b82f6;
+        animation: splashDotPulse 1.6s ease-in-out infinite;
+      }
+      .splash-dot:nth-child(2) { animation-delay: 0.2s; background: #60a5fa; }
+      .splash-dot:nth-child(3) { animation-delay: 0.4s; background: #22d3ee; }
+
+      /* ========== Keyframes ========== */
+      @keyframes splashGlowPulse {
+        0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
+        50% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+      }
+      @keyframes splashLogoEntry {
+        from { opacity: 0; transform: scale(0.7) translateY(20px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+      }
+      @keyframes splashTitleEntry {
+        from { opacity: 0; transform: translateY(16px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes splashFadeUp {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes splashRingSpin {
+        to { transform: rotate(360deg); }
+      }
+      @keyframes splashGradientShift {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+      }
+      @keyframes splashProgress {
+        0% { width: 0%; }
+        15% { width: 25%; }
+        40% { width: 50%; }
+        65% { width: 70%; }
+        85% { width: 88%; }
+        100% { width: 98%; }
+      }
+      @keyframes splashDotPulse {
+        0%, 100% { opacity: 0.3; transform: scale(0.8); }
+        50% { opacity: 1; transform: scale(1.3); }
+      }
+      @keyframes splashTextCycle {
+        0%, 8%    { content: ''; transform: translateY(0); opacity: 1; }
+        10%, 12%  { opacity: 0; transform: translateY(-8px); }
+        14%, 28%  { opacity: 1; transform: translateY(0); }
+        30%, 32%  { opacity: 0; transform: translateY(-8px); }
+        34%, 48%  { opacity: 1; transform: translateY(0); }
+        50%, 52%  { opacity: 0; transform: translateY(-8px); }
+        54%, 68%  { opacity: 1; transform: translateY(0); }
+        70%, 72%  { opacity: 0; transform: translateY(-8px); }
+        74%, 88%  { opacity: 1; transform: translateY(0); }
+        90%, 92%  { opacity: 0; transform: translateY(-8px); }
+        94%, 100% { opacity: 1; transform: translateY(0); }
+      }
+    </style>
   </head>
   <body>
+    <!-- ═══════════════════════════════════════════
+         Splash / Loading Screen
+         ═══════════════════════════════════════════ -->
+    <div id="splash-screen">
+      <!-- Logo with animated rings -->
+      <div class="splash-logo-wrap">
+        <div class="splash-ring"></div>
+        <div class="splash-ring-outer"></div>
+        <img src="/logo.png" alt="WaterSync" />
+      </div>
+
+      <!-- Title -->
+      <div class="splash-title">WaterSync</div>
+      <div class="splash-subtitle">نظام إدارة توزيع المياه الذكي</div>
+
+      <!-- Progress bar -->
+      <div class="splash-progress-track">
+        <div class="splash-progress-bar"></div>
+      </div>
+
+      <!-- Dynamic status messages -->
+      <div class="splash-status">
+        <span class="splash-status-text" id="splash-status-text">
+          جارٍ تهيئة النظام...
+        </span>
+      </div>
+
+      <!-- Animated dots -->
+      <div class="splash-dots">
+        <span class="splash-dot"></span>
+        <span class="splash-dot"></span>
+        <span class="splash-dot"></span>
+      </div>
+    </div>
+
+    <!-- Dynamic status text rotation script -->
+    <script>
+      (function () {
+        var messages = [
+          'جارٍ تهيئة النظام...',
+          'تحميل الخرائط الجغرافية...',
+          'مزامنة بيانات المحطات...',
+          'إعداد طبقات التحليل المكاني...',
+          'ربط شبكة التوزيع...',
+          'تحميل بيانات الأحياء والمناطق...',
+          'تهيئة محرك التوجيه الذكي...',
+          'فحص حالة الخزانات...',
+          'جارٍ التحقق من الاتصال...',
+          'النظام جاهز تقريباً...'
+        ];
+        var idx = 0;
+        var el = document.getElementById('splash-status-text');
+        if (!el) return;
+
+        setInterval(function () {
+          // Fade out
+          el.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+          el.style.opacity = '0';
+          el.style.transform = 'translateY(-6px)';
+
+          setTimeout(function () {
+            idx = (idx + 1) % messages.length;
+            el.textContent = messages[idx];
+            // Fade in
+            el.style.transform = 'translateY(6px)';
+            requestAnimationFrame(function () {
+              el.style.opacity = '1';
+              el.style.transform = 'translateY(0)';
+            });
+          }, 400);
+        }, 5000);
+      })();
+    </script>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
